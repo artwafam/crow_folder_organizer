@@ -1,0 +1,27 @@
+[package]
+name = "crow"
+version = "0.1.0"
+edition = "2021"
+description = "Ultra-light desktop folder organizer for Windows"
+
+[lib]
+name = "crow"
+path = "src/lib.rs"
+test = false
+bench = false
+
+[dependencies]
+
+[profile.dev]
+panic = "abort"
+opt-level = 1
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+debug = false
+incremental = false
+overflow-checks = false
