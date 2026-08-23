@@ -9,6 +9,9 @@ extern crate alloc;
 pub mod util;
 pub mod ffi;
 pub mod gfx;
+pub mod image;
 pub mod raster;
 pub mod rt;
+pub mod svg;
+pub mod text;
 
