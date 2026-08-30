@@ -8,12 +8,15 @@ extern crate alloc;
 #[macro_use]
 pub mod util;
 pub mod config;
+pub mod desk;
 pub mod ffi;
 pub mod gfx;
+pub mod glyph;
 pub mod i18n;
 pub mod image;
 pub mod raster;
 pub mod rt;
+pub mod store;
 pub mod svg;
 pub mod text;
 
