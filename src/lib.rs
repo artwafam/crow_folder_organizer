@@ -9,6 +9,7 @@ extern crate alloc;
 pub mod util;
 pub mod config;
 pub mod desk;
+pub mod edit;
 pub mod ffi;
 pub mod gfx;
 pub mod glyph;
@@ -19,4 +20,5 @@ pub mod rt;
 pub mod store;
 pub mod svg;
 pub mod text;
+pub mod ui;
 
