@@ -10,6 +10,12 @@ path = "src/lib.rs"
 test = false
 bench = false
 
+[[bin]]
+name = "crow"
+path = "src/main.rs"
+test = false
+bench = false
+
 [dependencies]
 
 [profile.dev]

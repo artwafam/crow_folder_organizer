@@ -1,4 +1,5 @@
-// Builds the language table that gets embedded in Crow.
+// Linker settings, embedded resources and the language table for crow.exe.
+include!("build/res.rs");
 
 use std::fmt::Write as _;
 
@@ -22,4 +23,13 @@ fn main() {
     src.push_str("];\n");
     std::fs::write(out_dir.join("langs.rs"), src).unwrap();
     println!("cargo:rerun-if-changed=lang");
+
+    let res = out_dir.join("crow.res");
+    let ico = std::fs::read("packaging/crow_embed.ico").ok();
+    res::write(&res, "Crow - desktop folder organizer", "crow.exe", false, ico.as_deref());
+    println!("cargo:rerun-if-changed=build/res.rs");
+    println!("cargo:rerun-if-changed=packaging/crow_embed.ico");
+    println!("cargo:rustc-link-arg-bins={}", res.display());
+    println!("cargo:rustc-link-arg-bins=/ENTRY:entry");
+    println!("cargo:rustc-link-arg-bins=/SUBSYSTEM:WINDOWS,6.02");
 }
