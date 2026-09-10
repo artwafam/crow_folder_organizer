@@ -102,6 +102,9 @@ fn quit() -> ! {
     let a = app::app();
     a.save();
     unsafe {
+        for w in &a.wins {
+            RevokeDragDrop(w.hwnd);
+        }
         ExitProcess(0)
     }
 }

@@ -275,6 +275,7 @@ impl App {
             f.place(&self.g);
             f.render(&self.g, &mut self.fonts);
             ShowWindow(f.hwnd, SW_SHOWNOACTIVATE);
+            RegisterDragDrop(f.hwnd, crate::drop::target_ptr());
             let h = f.hwnd;
             self.wins.push(f);
             self.sink(h);
@@ -291,6 +292,7 @@ impl App {
         let mut f = self.wins.remove(i);
         crate::blur::apply(&mut f, false, &self.g);
         unsafe {
+            RevokeDragDrop(f.hwnd);
             DestroyWindow(f.hwnd);
         }
     }

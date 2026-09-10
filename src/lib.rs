@@ -12,6 +12,7 @@ pub mod app;
 pub mod blur;
 pub mod config;
 pub mod desk;
+pub mod drop;
 pub mod edit;
 pub mod ffi;
 pub mod folder;
