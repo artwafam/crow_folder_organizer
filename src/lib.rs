@@ -9,6 +9,7 @@ extern crate alloc;
 pub mod util;
 pub mod actions;
 pub mod app;
+pub mod art;
 pub mod blur;
 pub mod config;
 pub mod desk;

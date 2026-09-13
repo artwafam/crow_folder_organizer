@@ -11,8 +11,12 @@ pub extern "system" fn entry() -> ! {
     unsafe {
         harden();
         // Command line options. --new and --new-panel come from the desktop context
-        // menu.
+        // menu, and --export-art <dir> is used when packaging.
         let cl = util::from_w(core::slice::from_raw_parts(GetCommandLineW(), 32768.min(rt::wcslen(GetCommandLineW()))));
+        if let Some(p) = cl.find("--export-art") {
+            let dir = cl[p + 12..].trim().trim_matches('"');
+            ExitProcess(if art::export(&util::to_w(dir)) { 0 } else { 1 });
+        }
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let new_req: usize = if cl.contains("--new-panel") { 2 } else if cl.contains("--new") { 1 } else { 0 };
         // Started from the Start menu (no options) or with --settings: show the
