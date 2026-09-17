@@ -27,6 +27,7 @@ pub mod prefs;
 pub mod raster;
 pub mod rt;
 pub mod settings;
+pub mod snapshot;
 pub mod store;
 pub mod svg;
 pub mod text;

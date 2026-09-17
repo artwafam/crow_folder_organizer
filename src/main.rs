@@ -13,6 +13,11 @@ pub extern "system" fn entry() -> ! {
         // Command line options. --new and --new-panel come from the desktop context
         // menu, and --export-art <dir> is used when packaging.
         let cl = util::from_w(core::slice::from_raw_parts(GetCommandLineW(), 32768.min(rt::wcslen(GetCommandLineW()))));
+        if let Some(p) = cl.find("--snapshot") {
+            let dir = cl[p + 10..].trim().trim_matches('"');
+            OleInitialize(core::ptr::null_mut());
+            ExitProcess(if snapshot::run(&util::to_w(dir)) { 0 } else { 1 });
+        }
         if let Some(p) = cl.find("--export-art") {
             let dir = cl[p + 12..].trim().trim_matches('"');
             ExitProcess(if art::export(&util::to_w(dir)) { 0 } else { 1 });
