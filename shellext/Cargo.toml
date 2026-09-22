@@ -1,0 +1,11 @@
+[package]
+name = "crow_menu"
+version = "0.1.0"
+edition = "2021"
+description = "Windows 11 context-menu handler (IExplorerCommand) for Crow"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+test = false
+bench = false
