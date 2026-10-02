@@ -1,0 +1,14 @@
+[package]
+name = "crow-setup"
+version = "0.1.0"
+edition = "2021"
+description = "Installer for Crow"
+
+[[bin]]
+name = "CrowSetup"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+crow = { path = ".." }

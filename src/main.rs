@@ -23,6 +23,11 @@ pub extern "system" fn entry() -> ! {
             ExitProcess(if art::export(&util::to_w(dir)) { 0 } else { 1 });
         }
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        if cl.contains("--uninstall") {
+            OleInitialize(core::ptr::null_mut());
+            installer::uninstall();
+            ExitProcess(0);
+        }
         let new_req: usize = if cl.contains("--new-panel") { 2 } else if cl.contains("--new") { 1 } else { 0 };
         // Started from the Start menu (no options) or with --settings: show the
         // settings window. Windows sign-in uses --background and shows nothing.

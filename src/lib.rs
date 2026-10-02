@@ -1,5 +1,6 @@
 //! Crow is an ultra light desktop folder organizer for Windows. It uses no std,
 //! no CRT and no UI framework, only raw Win32 and a hand written rasterizer.
+//! This library holds everything shared by the app and its installer.
 #![no_std]
 #![allow(clippy::missing_safety_doc, clippy::too_many_arguments)]
 
@@ -22,6 +23,7 @@ pub mod glyph;
 pub mod i18n;
 pub mod image;
 pub mod input;
+pub mod installer;
 pub mod popup;
 pub mod prefs;
 pub mod raster;

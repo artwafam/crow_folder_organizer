@@ -19,7 +19,7 @@ bench = false
 [dependencies]
 
 [workspace]
-members = ["shellext"]
+members = ["shellext", "setup"]
 
 [profile.dev]
 panic = "abort"
