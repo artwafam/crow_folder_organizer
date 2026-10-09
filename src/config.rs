@@ -185,7 +185,7 @@ impl Config {
                 in_folder = sec.eq_ignore_ascii_case("folder");
                 if in_folder {
                     let id = folders.iter().map(|f| f.id).max().unwrap_or(0) + 1;
-                    folders.push(Folder::new(id, "Pasta", 120, 120));
+                    folders.push(Folder::new(id, "Folder", 120, 120));
                 }
                 continue;
             }
