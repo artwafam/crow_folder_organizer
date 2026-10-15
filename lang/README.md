@@ -11,6 +11,10 @@ Every language is one plain text file in this folder, named after its language c
 
 Missing lines fall back to English, so a partial translation still works.
 
+## Try it without building
+
+Put your file in a `lang` folder next to `crow.exe` (for example `%LOCALAPPDATA%\Programs\Crow\lang\de.ini`), open Crow settings and pick it under Language. A file there also overrides the built-in one with the same name, which is handy for fixing an existing translation.
+
 ## Tips
 
 - Keep texts short. Menus and buttons have limited room.

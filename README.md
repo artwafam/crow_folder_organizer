@@ -9,9 +9,19 @@ A tiny, highly customizable desktop folder organizer for Windows. Group your sho
   <img src="docs/menu.png" alt="Context menu" width="280">
 </p>
 
+## Download
+
+Get `CrowSetup.exe` from the [latest release](../../releases/latest) and run it. That's all you need.
+
+It installs for your user only, so no admin rights are required. It can start Crow with Windows and add a "Crow" entry to the desktop right-click menu. Uninstall it any time from Windows Settings, under Apps.
+
+Windows may show a SmartScreen warning the first time, because the installer is not signed yet. Click "More info" and then "Run anyway".
+
+Prefer no installer? Download `crow-portable.exe` and run it from anywhere.
+
 ## Features
 
-- Folders open as soon as the pointer settles on them, with a smooth animation. Any folder can also be a panel that stays open.
+- Folders open as soon as the pointer settles on them, with a smooth animation. Any folder can also be a panel that stays open, and panels collapse to their header with one click.
 - Drag shortcuts from the desktop or Explorer onto a folder to move them in. Drag them out to put them back on the desktop.
 - Click a folder name to rename it right there.
 - A settings button appears in the corner of each folder, with colors, icons, sizes and layout. Changes show up live.
@@ -28,15 +38,22 @@ A tiny, highly customizable desktop folder organizer for Windows. Group your sho
 
 | | |
 |---|---|
-| crow.exe | about 250 KB |
+| crow.exe | about 265 KB |
 | Memory when idle | about 70 KB |
 | CPU when idle | 0% |
 
-## Building
+## Translating
 
-You need [Rust](https://rustup.rs).
+Translations are plain text files in [lang](lang). See [lang/README.md](lang/README.md) to add a language or fix one.
+
+## Building from source
+
+Only needed if you want to work on Crow. You need [Rust](https://rustup.rs).
 
 ```sh
 rustup target add x86_64-pc-windows-msvc
-cargo build --release
+cargo build --release -p crow
+cargo build --release -p crow-setup
 ```
+
+Both files end up in `target\x86_64-pc-windows-msvc\release`. Pushing a tag like `v1.0.0` makes the GitHub workflow build them and publish a release.
