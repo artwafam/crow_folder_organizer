@@ -19,3 +19,4 @@ Put your file in a `lang` folder next to `crow.exe` (for example `%LOCALAPPDATA%
 
 - Keep texts short. Menus and buttons have limited room.
 - The `...` at the end of a menu entry means it opens a dialog. Keep it.
+- `{}` is replaced by a name or a number. Keep it in the text.

@@ -26,7 +26,7 @@ fn main() {
 
     let res = out_dir.join("crow.res");
     let ico = std::fs::read("packaging/crow_embed.ico").ok();
-    res::write(&res, "Crow - desktop folder organizer", "crow.exe", false, ico.as_deref());
+    res::write(&res, "Crow", "crow.exe", false, ico.as_deref());
     println!("cargo:rerun-if-changed=build/res.rs");
     println!("cargo:rerun-if-changed=packaging/crow_embed.ico");
     println!("cargo:rustc-link-arg-bins={}", res.display());

@@ -128,11 +128,11 @@ fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
     let key = UNINSTALL_KEY;
     store::reg_str(key, Some(w!("DisplayName")), w!("Crow"));
     store::reg_str(key, Some(w!("DisplayVersion")), &to_w(env!("CARGO_PKG_VERSION")));
-    store::reg_str(key, Some(w!("Publisher")), w!("Crow"));
+    store::reg_str(key, Some(w!("Publisher")), &to_w(env!("CARGO_PKG_AUTHORS")));
     store::reg_str(key, Some(w!("DisplayIcon")), &wcat(&[&exe, w!(",0")]));
     store::reg_str(key, Some(w!("InstallLocation")), &dir);
     store::reg_str(key, Some(w!("UninstallString")), &wcat(&[w!("\""), &exe, w!("\" --uninstall")]));
-    store::reg_str(key, Some(w!("URLInfoAbout")), w!("https://github.com"));
+    store::reg_str(key, Some(w!("URLInfoAbout")), &to_w(env!("CARGO_PKG_REPOSITORY")));
     store::reg_dword(key, w!("NoModify"), 1);
     store::reg_dword(key, w!("NoRepair"), 1);
     store::reg_dword(key, w!("EstimatedSize"), (payload.len() / 1024) as u32 + 1);
@@ -351,7 +351,7 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
         ui.y = m + BAR * sc;
         if let Some(cv) = ui.cv.as_deref_mut() {
             let gs = (56.0 * sc) as i32;
-            let px = crate::glyph::folder(gs, 0xFFF5B841, if d.step == Step::Done { 0.6 } else { 0.0 });
+            let px = crate::art::logo(gs);
             cv.blit(&px, gs, gs, ui.x, ui.y, gs as f32, gs as f32, 256);
         }
         let (tx, ty) = (ui.x + 72.0 * sc, ui.y + 4.0 * sc);
@@ -523,8 +523,43 @@ fn run(uninstall: bool, payload: &'static [u8]) {
     }
 }
 
-/// Entry point of CrowSetup.exe.
+/// Whether a key (and optionally one of its values) exists under HKCU.
+fn reg_has(path: &[u16], value: Option<&[u16]>) -> bool {
+    unsafe {
+        let mut k: HKEY = 0;
+        if RegOpenKeyExW(HKEY_CURRENT_USER, wz(path).as_ptr(), 0, KEY_READ, &mut k) != 0 {
+            return false;
+        }
+        let ok = match value {
+            None => true,
+            Some(v) => {
+                let n = wz(v);
+                let null = core::ptr::null_mut();
+                RegQueryValueExW(k, n.as_ptr(), null, null, null as *mut u8, null) == 0
+            }
+        };
+        RegCloseKey(k);
+        ok
+    }
+}
+
+/// Entry point of CrowSetup.exe. `/S` installs without any window, for winget
+/// and scripts. An update keeps the current startup and desktop menu choices,
+/// a new install turns both on.
 pub fn setup(payload: &'static [u8]) {
+    let cl = unsafe { from_w(core::slice::from_raw_parts(GetCommandLineW(), crate::rt::wcslen(GetCommandLineW()).min(32768))) };
+    let silent = cl.split_whitespace().skip(1).any(|a| a.eq_ignore_ascii_case("/S") || a.eq_ignore_ascii_case("--silent"));
+    if silent {
+        let fresh = installed_version().is_none();
+        let startup = fresh || reg_has(store::RUN_KEY, Some(w!("Crow")));
+        let menu = fresh || reg_has(store::DESK_KEY, None);
+        let ok = install(payload, startup, menu);
+        if ok {
+            let exe = wz(&wcat(&[&install_dir(), w!("\\crow.exe")]));
+            unsafe { ShellExecuteW(0, core::ptr::null(), exe.as_ptr(), w!("--background").as_ptr(), core::ptr::null(), SW_SHOWNORMAL) };
+        }
+        unsafe { ExitProcess(if ok { 0 } else { 1 }) };
+    }
     run(false, payload);
 }
 

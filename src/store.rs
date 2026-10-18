@@ -298,7 +298,7 @@ pub fn reveal(path: &[u16]) {
 }
 
 // --------------------------------------------------------------- autostart
-const RUN_KEY: &[u16] = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+pub const RUN_KEY: &[u16] = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 
 pub fn own_exe() -> WString {
     let mut exe = [0u16; 520];
@@ -340,7 +340,7 @@ pub fn set_autostart_for(exe: &[u16], on: bool) {
 // Classic verbs in HKCU, which need no admin rights. Windows 10 shows them
 // directly and Windows 11 shows them under "Show more options". A signed build
 // can also register the Windows 11 top level entry (crow_menu.dll).
-const DESK_KEY: &[u16] = w!("Software\\Classes\\DesktopBackground\\Shell\\Crow");
+pub const DESK_KEY: &[u16] = w!("Software\\Classes\\DesktopBackground\\Shell\\Crow");
 
 pub fn reg_str(path: &[u16], name: Option<&[u16]>, val: &[u16]) {
     unsafe {

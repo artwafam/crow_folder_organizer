@@ -1,11 +1,25 @@
-//! Handles `crow.exe --export-art <dir>`. It writes crow.ico and the package
-//! logos, drawn from the same vector folder icon the app uses.
+//! The Crow logo, and `crow.exe --export-art <dir>`, which writes crow.ico and
+//! the package logos from it. Folders keep their own folder icon.
 
-use crate::glyph;
 use crate::util::*;
 use alloc::vec::Vec;
 
-const COLOR: u32 = 0xFFF5B841;
+/// A crow on an amber tile, in the same color as the default folders.
+const LOGO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFCF5C"/><stop offset="1" stop-color="#EE9A2E"/></linearGradient></defs>
+<rect x="16" y="16" width="224" height="224" rx="54" fill="url(#t)"/>
+<g transform="translate(-10 2)">
+<path fill="#17181C" d="M114 104 C116 78 134 58 158 57 C173 56 185 63 192 72 L234 92 C220 99 206 104 192 106 C197 128 190 153 170 170 C154 184 132 191 110 191 L58 214 L70 196 L46 197 C66 182 82 167 92 150 C100 136 107 120 114 104 Z"/>
+<path fill="#2C2E36" d="M122 112 C137 116 150 130 151 148 C152 165 139 178 115 185 L80 194 C95 177 105 161 110 144 C113 131 116 120 122 112 Z"/>
+<path fill="#2C2E36" d="M192 72 L234 92 C224 92 206 89 192 86 Z"/>
+<circle cx="166" cy="76" r="6.5" fill="#F5B841"/>
+<path d="M136 189 L132 210 M154 184 L152 210" stroke="#17181C" stroke-width="7" stroke-linecap="round"/>
+</g></svg>"##;
+
+/// The logo at s by s pixels, premultiplied BGRA.
+pub fn logo(s: i32) -> Vec<u32> {
+    crate::svg::render(LOGO.as_bytes(), s, 0).unwrap_or_else(|| alloc::vec![0; (s * s) as usize])
+}
 
 /// Converts a premultiplied BGRA pixel to straight RGBA.
 fn straight(c: u32) -> [u8; 4] {
@@ -89,7 +103,7 @@ fn ico(sizes: &[i32]) -> Vec<u8> {
     let imgs: Vec<Vec<u8>> = sizes
         .iter()
         .map(|&s| {
-            let px = glyph::folder(s, COLOR, 0.0);
+            let px = logo(s);
             let mut d = Vec::new();
             for v in [40u32, s as u32, (s * 2) as u32] {
                 d.extend_from_slice(&v.to_le_bytes());
@@ -135,7 +149,7 @@ pub fn export(dir: &[u16]) -> bool {
     // A smaller set is embedded in crow.exe to keep the binary small
     ok &= write_file(&wcat(&[dir, w!("\\crow_embed.ico")]), &ico(&[16, 32, 48]));
     for (name, s) in [(w!("\\Logo44.png") as &[u16], 44), (w!("\\Logo150.png"), 150), (w!("\\StoreLogo.png"), 50)] {
-        ok &= write_file(&wcat(&[&assets, name]), &png(&glyph::folder(s, COLOR, 0.0), s));
+        ok &= write_file(&wcat(&[&assets, name]), &png(&logo(s), s));
     }
     ok
 }

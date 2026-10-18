@@ -25,7 +25,7 @@ pub fn build(app: &mut App, st: &mut PrefsState, ui: &mut Ui, m: f32, pw: f32, p
     let mut close = false;
     if let Some(cv) = ui.cv.as_deref_mut() {
         let gs = (22.0 * sc) as i32;
-        let px = crate::glyph::folder(gs, ui.th.accent, 0.0);
+        let px = crate::art::logo(gs);
         cv.blit(&px, gs, gs, m + 18.0 * sc, m + (bar - gs as f32) / 2.0, gs as f32, gs as f32, 256);
         cv.rrect(m, m + bar - 1.0 * sc, pw, 1.0 * sc, 0.0, ui.th.border, ui.th.border, 255, 1.0);
         cv.rrect(m + side, m + bar, 1.0 * sc, ph - bar, 0.0, ui.th.border, ui.th.border, 255, 1.0);
@@ -301,7 +301,7 @@ fn about(app: &mut App, ui: &mut Ui) {
     let sc = ui.sc;
     if let Some(cv) = ui.cv.as_deref_mut() {
         let gs = (64.0 * sc) as i32;
-        let px = crate::glyph::folder(gs, 0xFFF5B841, 0.0);
+        let px = crate::art::logo(gs);
         cv.blit(&px, gs, gs, ui.x, ui.y, gs as f32, gs as f32, 256);
     }
     let (x, y) = (ui.x + 80.0 * sc, ui.y + 8.0 * sc);
@@ -311,14 +311,23 @@ fn about(app: &mut App, ui: &mut Ui) {
     v.push(' ');
     v.push_str(env!("CARGO_PKG_VERSION"));
     ui.text(&v, x, y + 32.0 * sc, 13.0, FW_NORMAL, mc, false);
-    ui.y += 84.0 * sc;
+    let by = tr("prefs.created_by").replace("{}", env!("CARGO_PKG_AUTHORS"));
+    ui.text(&by, x, y + 52.0 * sc, 13.0, FW_NORMAL, mc, false);
+    ui.y += 92.0 * sc;
     ui.paragraph(tr("prefs.translate"), 13.0, mc);
     ui.space(6.0);
     let half = (ui.w - ui.s(8.0)) / 2.0;
     let x0 = ui.x;
-    let ini = ui.button(1900, tr("prefs.edit_ini"), Some(Ic::File), 0, x0, half);
-    let quit = ui.button(1910, tr("prefs.quit"), Some(Ic::Power), 2, x0 + half + ui.s(8.0), half);
+    let x1 = x0 + half + ui.s(8.0);
+    let site = ui.button(1890, tr("prefs.project_page"), Some(Ic::Open), 0, x0, half);
+    let ini = ui.button(1900, tr("prefs.edit_ini"), Some(Ic::File), 0, x1, half);
+    ui.y += ui.s(42.0);
+    let quit = ui.button(1910, tr("prefs.quit"), Some(Ic::Power), 2, x0, half);
     ui.y += ui.s(34.0);
+    if site {
+        let url = wz(&to_w(env!("CARGO_PKG_REPOSITORY")));
+        unsafe { ShellExecuteW(0, core::ptr::null(), url.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL) };
+    }
     if ini {
         app.open_ini();
     }

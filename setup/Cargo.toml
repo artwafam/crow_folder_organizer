@@ -3,6 +3,8 @@ name = "crow-setup"
 version = "1.0.0"
 edition = "2021"
 description = "Installer for Crow"
+authors.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "CrowSetup"

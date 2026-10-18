@@ -3,6 +3,8 @@ name = "crow"
 version = "1.0.0"
 edition = "2021"
 description = "Ultra-light desktop folder organizer for Windows"
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "crow"
@@ -20,6 +22,12 @@ bench = false
 
 [workspace]
 members = ["shellext", "setup"]
+
+# Shared by every crate. The author shows up in the app, the file properties
+# and in the Windows list of installed apps.
+[workspace.package]
+authors = ["Lucas Melo"]
+repository = "https://github.com/shoyguer/crow_folder_organizer"
 
 [profile.dev]
 panic = "abort"

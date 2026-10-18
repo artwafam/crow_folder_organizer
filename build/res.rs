@@ -8,8 +8,23 @@
 mod res {
     use std::io::Write;
 
-    pub const LANG: u16 = 0x0416; // pt-BR
-    const VERSION: [u16; 4] = [1, 0, 0, 0];
+    pub const LANG: u16 = 0x0409; // English (US)
+
+    /// The package version from Cargo.toml as four numbers.
+    fn version() -> [u16; 4] {
+        let mut v = [0u16; 4];
+        let s = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
+        for (i, n) in s.split(['.', '-', '+']).take(3).enumerate() {
+            v[i] = n.parse().unwrap_or(0);
+        }
+        v
+    }
+
+    /// The authors from Cargo.toml, shown as the publisher of the file.
+    fn author() -> String {
+        let a = std::env::var("CARGO_PKG_AUTHORS").unwrap_or_default().replace(':', ", ");
+        if a.is_empty() { "Crow".into() } else { a }
+    }
 
     fn w(s: &str) -> Vec<u8> {
         s.encode_utf16().chain(std::iter::once(0)).flat_map(|c| c.to_le_bytes()).collect()
@@ -42,19 +57,21 @@ mod res {
     }
 
     fn version_info(desc: &str, file: &str, dll: bool) -> Vec<u8> {
-        let ms = ((VERSION[0] as u32) << 16) | VERSION[1] as u32;
-        let ls = ((VERSION[2] as u32) << 16) | VERSION[3] as u32;
+        let version = version();
+        let ms = ((version[0] as u32) << 16) | version[1] as u32;
+        let ls = ((version[2] as u32) << 16) | version[3] as u32;
         let mut fixed = Vec::new();
         for d in [0xFEEF04BDu32, 0x0001_0000, ms, ls, ms, ls, 0x3F, 0, 0x0004_0004, if dll { 2 } else { 1 }, 0, 0, 0] {
             fixed.extend_from_slice(&d.to_le_bytes());
         }
-        let ver = format!("{}.{}.{}.{}", VERSION[0], VERSION[1], VERSION[2], VERSION[3]);
-        let table = node("041604B0", &[], 0, true, &[
-            string("CompanyName", "Crow"),
+        let ver = format!("{}.{}.{}.{}", version[0], version[1], version[2], version[3]);
+        let author = author();
+        let table = node("040904B0", &[], 0, true, &[
+            string("CompanyName", &author),
             string("FileDescription", desc),
             string("FileVersion", &ver),
             string("InternalName", file.trim_end_matches(".exe").trim_end_matches(".dll")),
-            string("LegalCopyright", "Copyright (c) Crow"),
+            string("LegalCopyright", &format!("Copyright (c) {author}")),
             string("OriginalFilename", file),
             string("ProductName", "Crow"),
             string("ProductVersion", &ver),

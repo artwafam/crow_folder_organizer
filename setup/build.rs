@@ -13,7 +13,7 @@ fn main() {
     });
     let ico = std::fs::read(root.join("packaging/crow_embed.ico")).ok();
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("setup.res");
-    res::write_with(&out, "Crow setup", "CrowSetup.exe", false, ico.as_deref(), Some(&payload));
+    res::write_with(&out, "Crow Setup", "CrowSetup.exe", false, ico.as_deref(), Some(&payload));
     println!("cargo:rerun-if-changed={}", exe.display());
     println!("cargo:rerun-if-env-changed=CROW_EXE");
     println!("cargo:rustc-link-arg-bins={}", out.display());
