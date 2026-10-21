@@ -369,6 +369,7 @@ extern "system" {
     pub fn FindNextChangeNotification(h: HANDLE) -> BOOL;
     pub fn GetCurrentProcess() -> HANDLE;
     pub fn K32EmptyWorkingSet(p: HANDLE) -> BOOL;
+    pub fn K32GetProcessMemoryInfo(p: HANDLE, c: *mut PROCESS_MEMORY_COUNTERS, cb: u32) -> BOOL;
     pub fn CreateFileMappingW(h: HANDLE, sa: *const c_void, prot: u32, hi: u32, lo: u32, n: PCWSTR) -> HANDLE;
     pub fn MapViewOfFile(h: HANDLE, acc: u32, hi: u32, lo: u32, n: usize) -> *mut c_void;
     pub fn UnmapViewOfFile(p: *const c_void) -> BOOL;
@@ -560,4 +561,19 @@ pub unsafe fn com_release(obj: *mut c_void) {
         let f: unsafe extern "system" fn(*mut c_void) -> u32 = core::mem::transmute(vt(obj, 2));
         f(obj);
     }
+}
+
+#[repr(C)]
+#[derive(Default)]
+pub struct PROCESS_MEMORY_COUNTERS {
+    pub cb: u32,
+    pub PageFaultCount: u32,
+    pub PeakWorkingSetSize: usize,
+    pub WorkingSetSize: usize,
+    pub QuotaPeakPagedPoolUsage: usize,
+    pub QuotaPagedPoolUsage: usize,
+    pub QuotaPeakNonPagedPoolUsage: usize,
+    pub QuotaNonPagedPoolUsage: usize,
+    pub PagefileUsage: usize,
+    pub PeakPagefileUsage: usize,
 }

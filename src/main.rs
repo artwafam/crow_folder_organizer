@@ -95,6 +95,14 @@ pub extern "system" fn entry() -> ! {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
+            // Anything that woke us up (a window switch, a timer, Windows itself)
+            // touches memory again. Trim it once things are quiet, unless this
+            // wakeup was the trim itself.
+            if a.trimmed {
+                a.trimmed = false;
+            } else {
+                a.arm_idle();
+            }
         }
     }
 }

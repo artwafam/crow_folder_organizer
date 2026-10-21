@@ -17,6 +17,9 @@ pub const T_HOVER: usize = 1;
 pub const T_CLOSE: usize = 2;
 pub const T_SPRING: usize = 3;
 pub const T_IDLE: usize = 10;
+/// Slow check that trims memory again when Windows threads inside the process
+/// (shell extensions, COM) grew it while Crow itself stayed asleep.
+pub const T_WATCH: usize = 12;
 /// Sent by a second `crow.exe --new` or `--new-panel`. wParam is 1 for a hover folder and 2 for a panel.
 pub const WM_CROW_NEW: u32 = WM_USER + 0x43;
 /// Asks the running instance to show its settings window.
@@ -71,6 +74,9 @@ pub struct App {
     pub popup: Option<Box<Popup>>,
     pub prefs: Option<Box<Popup>>,
     pub pending_drop: Option<PendingDrop>,
+    /// Set right after the working set was trimmed, so the timer that did it
+    /// doesn't schedule yet another trim.
+    pub trimmed: bool,
 }
 
 static mut APP: *mut App = core::ptr::null_mut();
@@ -129,6 +135,10 @@ unsafe extern "system" fn host_proc(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LR
         let a = app();
         if m == WM_TIMER && w == T_IDLE {
             a.on_idle();
+            return 0;
+        }
+        if m == WM_TIMER && w == T_WATCH {
+            a.on_watch();
             return 0;
         }
         if m == WM_TIMER && w == T_GHOST {
@@ -200,6 +210,7 @@ impl App {
             popup: None,
             prefs: None,
             pending_drop: None,
+            trimmed: false,
         });
         unsafe {
             APP = Box::into_raw(a);
@@ -247,6 +258,7 @@ impl App {
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
             a.on_foreground(GetForegroundWindow());
             a.arm_idle();
+            SetTimer(a.msg, T_WATCH, 20_000, 0);
             a
         }
     }
@@ -463,6 +475,20 @@ impl App {
             HeapCompact(GetProcessHeap(), 0);
             K32EmptyWorkingSet(GetCurrentProcess());
         }
+        self.trimmed = true;
+    }
+
+    /// Every 20 seconds: if memory crept back above 1 MB while nothing was
+    /// happening, trim it again. Costs a few microseconds.
+    pub fn on_watch(&mut self) {
+        let mut c = PROCESS_MEMORY_COUNTERS::default();
+        c.cb = core::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+        let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut c, c.cb) } != 0;
+        if ok && c.WorkingSetSize > 1 << 20 {
+            self.on_idle();
+        }
+        // this wakeup should not schedule another trim by itself
+        self.trimmed = true;
     }
 
     pub fn save(&mut self) {

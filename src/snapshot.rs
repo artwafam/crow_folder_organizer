@@ -51,6 +51,7 @@ pub fn run(out: &[u16]) -> bool {
         popup: None,
         prefs: None,
         pending_drop: None,
+        trimmed: false,
     }));
     for f in cfg.folders {
         let mut w = Box::new(FolderWin::new(f));
