@@ -110,6 +110,8 @@ pub struct FolderWin {
     /// Panels only: 1 when fully open, 0 when rolled up to the header.
     pub roll: f32,
     pub grip_hot: bool,
+    /// The pointer is close to the resize corner, so the grip is shown.
+    pub grip_near: bool,
     pub chev_hot: bool,
     hdr_px: i32,
     full_px: i32,
@@ -163,6 +165,7 @@ impl FolderWin {
             speed: 0.0,
             roll: 1.0,
             grip_hot: false,
+            grip_near: false,
             chev_hot: false,
             hdr_px: 0,
             full_px: 0,
@@ -452,6 +455,18 @@ impl FolderWin {
         let x = self.panel.left - self.win.left + l.pad + col * l.cell_w;
         let y = self.panel.top - self.win.top + l.body + ((row as f32 - self.scroll) * l.cell_h as f32) as i32;
         (x, y)
+    }
+
+    /// Whether the pointer (window relative) is near the bottom right corner of
+    /// an open panel. The resize grip only shows up there.
+    pub fn near_grip(&self, g: &Global, pt: POINT) -> bool {
+        if self.cfg.mode != Mode::Panel || self.cfg.locked || self.rolled() {
+            return false;
+        }
+        let l = self.layout(g);
+        let (rx, ry) = (pt.x + self.win.left - self.panel.left, pt.y + self.win.top - self.panel.top);
+        let near = (44.0 * self.sc) as i32;
+        rx > l.pw - near && ry > l.ph - near && rx < l.pw && ry < l.ph
     }
 
     pub fn hit(&self, g: &Global, pt: POINT) -> Hit {
@@ -930,8 +945,10 @@ impl FolderWin {
                 let c = if self.chev_hot { g.title } else { mix(g.text, 0xFF808080, 0.35) };
                 cv.mask(&m, isz, isz, (cx + (cw - isz as f32) / 2.0) as i32, (cy + (ch - isz as f32) / 2.0) as i32, pm(c, (self.gear_a * 255.0) as u32));
             }
-            // resize grip: two short diagonal strokes tucked inside the rounded corner
-            if self.cfg.mode == Mode::Panel && !self.cfg.locked && self.mouse_in && !self.rolled() {
+            // Resize grip: two short diagonal strokes tucked inside the rounded corner.
+            // It stays hidden until the pointer gets close to the corner.
+            let resizing = matches!(self.drag, Drag::Resize(..));
+            if self.cfg.mode == Mode::Panel && !self.cfg.locked && !self.rolled() && (self.grip_near || self.grip_hot || resizing) {
                 let s = (14.0 * sc).max(10.0) as i32;
                 let inset = (g.radius as f32 * sc) * 0.29 + 4.0 * sc;
                 let x0 = (px0 + l.pw as f32 - inset - s as f32) as i32;
@@ -944,7 +961,7 @@ impl FolderWin {
                 ph.line_to(crate::raster::p(k * 0.95, k * 0.55));
                 let st = ph.stroke(1.4 * sc, true);
                 let cov = crate::raster::rasterize(&st, s as usize, s as usize);
-                let c = if self.grip_hot { 0xC8FFFFFF } else { 0x5CFFFFFF };
+                let c = if self.grip_hot || resizing { 0xC8FFFFFF } else { 0x5CFFFFFF };
                 cv.mask(&cov.a, s, s, x0, y0, pm(c, 255));
             }
             if opening && self.cfg.mode == Mode::Hover {

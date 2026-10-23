@@ -47,9 +47,6 @@ impl App {
             f.prewarm(&self.g, &mut self.fonts);
             unsafe { SetTimer(hwnd, T_HOVER, 15, 0) };
         }
-        if f.cfg.mode == Mode::Panel {
-            self.render(i); // shows the resize grip
-        }
     }
 
     pub fn on_move(&mut self, i: usize, p: POINT) {
@@ -150,15 +147,17 @@ impl App {
                 let gear_hot = h == Hit::Gear;
                 let chev_hot = h == Hit::Chevron;
                 let grip_hot = h == Hit::Grip;
+                let grip_near = self.wins[i].near_grip(&self.g, p);
                 let open = self.popup_open_for(self.wins[i].cfg.id);
                 let f = &mut self.wins[i];
                 let gear_on = in_header || open;
                 let changed = hv != f.hover || gear_hot != f.gear_hot || gear_on != f.gear_on
-                    || chev_hot != f.chev_hot || grip_hot != f.grip_hot;
+                    || chev_hot != f.chev_hot || grip_hot != f.grip_hot || grip_near != f.grip_near;
                 f.hover = hv;
                 f.gear_hot = gear_hot;
                 f.chev_hot = chev_hot;
                 f.grip_hot = grip_hot;
+                f.grip_near = grip_near;
                 f.gear_on = gear_on;
                 if changed && !f.animating() {
                     self.render(i);
@@ -181,6 +180,7 @@ impl App {
         f.gear_hot = false;
         f.chev_hot = false;
         f.grip_hot = false;
+        f.grip_near = false;
         f.gear_on = open;
         if f.cfg.mode == Mode::Hover && f.target > 0.0 && !open && f.edit.is_none() {
             unsafe { SetTimer(hwnd, T_CLOSE, self.g.close_delay.max(1), 0) };

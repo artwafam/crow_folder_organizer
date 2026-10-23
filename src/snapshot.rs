@@ -207,6 +207,13 @@ pub fn run(out: &[u16]) -> bool {
         if let Some(cv) = a.wins[k].frame() {
             save(cv, out, "10-panel.png");
         }
+        // the same panel with the pointer near the resize corner
+        a.wins[k].grip_near = true;
+        a.wins[k].draw(&a.g, &mut a.fonts);
+        if let Some(cv) = a.wins[k].frame() {
+            save(cv, out, "10-panel-grip.png");
+        }
+        a.wins[k].grip_near = false;
         {
             let f = &mut a.wins[k];
             f.cfg.collapsed = true;
