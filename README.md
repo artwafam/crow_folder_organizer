@@ -17,7 +17,7 @@ It installs for your user only, so no admin rights are required. It can start Cr
 
 Windows may show a SmartScreen warning the first time, because the installer is not signed yet. Click "More info" and then "Run anyway".
 
-Prefer no installer? Download `crow-portable.exe` and run it from anywhere.
+Prefer no installer? Download `crow-portable.exe` and run it from anywhere. To install without any window, for example from a script, run `CrowSetup.exe /S`.
 
 ## Features
 
@@ -38,8 +38,8 @@ Prefer no installer? Download `crow-portable.exe` and run it from anywhere.
 
 | | |
 |---|---|
-| crow.exe | about 265 KB |
-| Memory when idle | about 70 KB |
+| crow.exe | about 270 KB |
+| Memory when idle | about 100 KB |
 | CPU when idle | 0% |
 
 ## Translating
