@@ -289,7 +289,7 @@ impl Config {
     pub fn serialize(&self) -> String {
         let g = &self.g;
         let mut s = String::with_capacity(2048);
-        s.push_str("; Crow settings. Edit and save, changes show up right away.\n");
+        s.push_str("; Crow FO settings. Edit and save, changes show up right away.\n");
         s.push_str("; Colors are #RRGGBB or #RRGGBBAA, where AA is the opacity.\n; mode is hover (opens when you point at it) or panel (always open).\n");
         s.push_str("; header is tint, band, line or none, here or per folder.\n; The pos lines remember where each folder sits on each computer.\n\n[global]\n");
         let kv = |s: &mut String, k: &str, v: &str| {

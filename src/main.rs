@@ -36,7 +36,7 @@ pub extern "system" fn entry() -> ! {
         // Only one instance runs. A second one forwards its request and exits.
         CreateMutexW(core::ptr::null(), 1, w!("Local\\CrowFolderOrganizer").as_ptr());
         if GetLastError() == ERROR_ALREADY_EXISTS {
-            let h = FindWindowW(w!("CrowHost").as_ptr(), core::ptr::null());
+            let h = FindWindowW(w!("CrowFOHost").as_ptr(), core::ptr::null());
             if h != 0 {
                 let mut pid = 0u32;
                 GetWindowThreadProcessId(h, &mut pid);

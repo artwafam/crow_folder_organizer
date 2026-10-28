@@ -1,4 +1,4 @@
-//! The Crow logo, and `crow.exe --export-art <dir>`, which writes crow.ico and
+//! The Crow logo, and `CrowFO.exe --export-art <dir>`, which writes crow.ico and
 //! the package logos from it. Folders keep their own folder icon.
 
 use crate::util::*;
@@ -146,7 +146,7 @@ pub fn export(dir: &[u16]) -> bool {
     let assets = wcat(&[dir, w!("\\Assets")]);
     mkdir(&assets);
     let mut ok = write_file(&wcat(&[dir, w!("\\crow.ico")]), &ico(&[16, 20, 24, 32, 40, 48, 64, 256]));
-    // A smaller set is embedded in crow.exe to keep the binary small
+    // A smaller set is embedded in CrowFO.exe to keep the binary small
     ok &= write_file(&wcat(&[dir, w!("\\crow_embed.ico")]), &ico(&[16, 32, 48]));
     for (name, s) in [(w!("\\Logo44.png") as &[u16], 44), (w!("\\Logo150.png"), 150), (w!("\\StoreLogo.png"), 50)] {
         ok &= write_file(&wcat(&[&assets, name]), &png(&logo(s), s));

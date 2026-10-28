@@ -1,6 +1,6 @@
 //! Translations. Each language is a plain text file in `lang/` (one
 //! `key = text` per line). All of them are embedded at build time, and a file
-//! with the same name in a `lang` folder next to crow.exe takes precedence, so
+//! with the same name in a `lang` folder next to CrowFO.exe takes precedence, so
 //! translators can try their work without building anything.
 
 use crate::ffi::*;
@@ -38,7 +38,7 @@ fn lookup(t: &Table, key: &str) -> Option<&'static str> {
     t.pairs.iter().find(|p| p.0 == key).map(|p| p.1)
 }
 
-/// Folder next to crow.exe where translators can drop language files.
+/// Folder next to CrowFO.exe where translators can drop language files.
 fn external_dir() -> WString {
     let mut buf = [0u16; 520];
     let n = unsafe { GetModuleFileNameW(0, buf.as_mut_ptr(), 520) } as usize;

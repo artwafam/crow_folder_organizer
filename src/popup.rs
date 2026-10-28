@@ -355,7 +355,7 @@ impl App {
         unsafe {
             let m = (MARGIN * p.sc) as i32;
             let (ex, title) = match s {
-                Slot::Pop => (WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, w!("Crow").as_ptr()),
+                Slot::Pop => (WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, w!("Crow FO").as_ptr()),
                 Slot::Prefs => (WS_EX_LAYERED | WS_EX_APPWINDOW, wz(&to_w(tr("prefs.title"))).leak().as_ptr()),
             };
             p.hwnd = CreateWindowExW(ex, w!("CrowPopup").as_ptr(), title,

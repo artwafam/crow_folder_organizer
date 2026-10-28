@@ -1,4 +1,4 @@
-//! `crow.exe --snapshot <dir>` draws the main states of the interface into PNG
+//! `CrowFO.exe --snapshot <dir>` draws the main states of the interface into PNG
 //! files without creating any window. It is used to check the visuals and to
 //! make screenshots, and it never touches the screen, mouse or keyboard.
 

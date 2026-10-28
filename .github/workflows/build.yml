@@ -1,6 +1,6 @@
 name: Build
 
-# Builds Crow and its installer on every push and pull request.
+# Builds Crow FO and its installer on every push and pull request.
 # Pushing a tag like v1.2.0 also publishes a GitHub release with the files.
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
       - name: Cache build
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Crow
+      - name: Build Crow FO
         run: cargo build --release -p crow
 
       - name: Build the installer
@@ -36,8 +36,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist | Out-Null
-          Copy-Item target/x86_64-pc-windows-msvc/release/CrowSetup.exe dist/
-          Copy-Item target/x86_64-pc-windows-msvc/release/crow.exe dist/crow-portable.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/CrowFOSetup.exe dist/
+          Copy-Item target/x86_64-pc-windows-msvc/release/CrowFO.exe dist/CrowFO-portable.exe
           Get-FileHash dist/* -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
             Set-Content dist/SHA256SUMS.txt
@@ -46,7 +46,7 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: crow-windows
+          name: crowfo-windows
           path: dist/
 
       # Free code signing for open source projects through the SignPath
@@ -61,7 +61,7 @@ jobs:
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: crow
+          project-slug: crow-fo
           signing-policy-slug: release-signing
           github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
           wait-for-completion: true

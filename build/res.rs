@@ -73,7 +73,7 @@ mod res {
             string("InternalName", file.trim_end_matches(".exe").trim_end_matches(".dll")),
             string("LegalCopyright", &format!("Copyright (c) {author}")),
             string("OriginalFilename", file),
-            string("ProductName", "Crow"),
+            string("ProductName", "Crow FO"),
             string("ProductVersion", &ver),
         ]);
         let sfi = node("StringFileInfo", &[], 0, true, &[table]);
@@ -149,7 +149,7 @@ mod res {
     }
 
     /// Same as `write`, plus an optional binary payload stored as RCDATA #1
-    /// (the installer carries crow.exe this way).
+    /// (the installer carries CrowFO.exe this way).
     pub fn write_with(path: &std::path::Path, desc: &str, file: &str, dll: bool, ico: Option<&[u8]>, rcdata: Option<&[u8]>) {
         let mut out = vec![0u8; 32];
         out[4] = 32;

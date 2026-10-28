@@ -306,7 +306,7 @@ fn about(app: &mut App, ui: &mut Ui) {
     }
     let (x, y) = (ui.x + 80.0 * sc, ui.y + 8.0 * sc);
     let (tc, mc) = (ui.th.text, ui.th.muted);
-    ui.text("Crow", x, y, 22.0, FW_SEMIBOLD, tc, false);
+    ui.text("Crow FO", x, y, 22.0, FW_SEMIBOLD, tc, false);
     let mut v = String::from(tr("prefs.version"));
     v.push(' ');
     v.push_str(env!("CARGO_PKG_VERSION"));

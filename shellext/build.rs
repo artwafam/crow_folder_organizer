@@ -3,7 +3,7 @@ include!("../build/res.rs");
 
 fn main() {
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("crow_menu.res");
-    res::write(&out, "Crow context menu", "crow_menu.dll", true, None);
+    res::write(&out, "Crow FO context menu", "crow_menu.dll", true, None);
     println!("cargo:rerun-if-changed=../build/res.rs");
     println!("cargo:rustc-link-arg-cdylib={}", out.display());
     println!("cargo:rustc-link-arg-cdylib=/ENTRY:DllMain");

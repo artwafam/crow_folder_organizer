@@ -1,6 +1,6 @@
-# Crow
+# Crow FO
 
-A tiny, highly customizable desktop folder organizer for Windows. Group your shortcuts into folders that open when you hover over them, or keep them in panels that stay open.
+Crow FO (Folder Organizer) is a tiny, highly customizable desktop folder organizer for Windows. Group your shortcuts into folders that open when you hover over them, or keep them in panels that stay open.
 
 ![A folder opened on hover](docs/open.png)
 
@@ -11,13 +11,13 @@ A tiny, highly customizable desktop folder organizer for Windows. Group your sho
 
 ## Download
 
-Get `CrowSetup.exe` from the [latest release](../../releases/latest) and run it. That's all you need.
+Get `CrowFOSetup.exe` from the [latest release](../../releases/latest) and run it. That's all you need.
 
-It installs for your user only, so no admin rights are required. It can start Crow with Windows and add a "Crow" entry to the desktop right-click menu. Uninstall it any time from Windows Settings, under Apps.
+It installs for your user only, so no admin rights are required. It can start Crow FO with Windows and add a "Crow FO" entry to the desktop right-click menu. Uninstall it any time from Windows Settings, under Apps.
 
 Windows may show a SmartScreen warning the first time, because the installer is not signed yet. Click "More info" and then "Run anyway".
 
-Prefer no installer? Download `crow-portable.exe` and run it from anywhere. To install without any window, for example from a script, run `CrowSetup.exe /S`.
+Prefer no installer? Download `CrowFO-portable.exe` and run it from anywhere. To install without any window, for example from a script, run `CrowFOSetup.exe /S`.
 
 ## Features
 
@@ -30,7 +30,7 @@ Prefer no installer? Download `crow-portable.exe` and run it from anywhere. To i
 - Available in English, Español, Português (Brasil), Русский, 简体中文 and 繁體中文.
 
 <p>
-  <img src="docs/prefs.png" alt="Crow settings" width="440">
+  <img src="docs/prefs.png" alt="Crow FO settings" width="440">
   <img src="docs/settings.png" alt="Folder settings" width="250">
 </p>
 
@@ -38,7 +38,7 @@ Prefer no installer? Download `crow-portable.exe` and run it from anywhere. To i
 
 | | |
 |---|---|
-| crow.exe | about 270 KB |
+| CrowFO.exe | about 270 KB |
 | Memory when idle | about 100 KB |
 | CPU when idle | 0% |
 
@@ -48,7 +48,7 @@ Translations are plain text files in [lang](lang). See [lang/README.md](lang/REA
 
 ## Building from source
 
-Only needed if you want to work on Crow. You need [Rust](https://rustup.rs).
+Only needed if you want to work on Crow FO. You need [Rust](https://rustup.rs).
 
 ```sh
 rustup target add x86_64-pc-windows-msvc

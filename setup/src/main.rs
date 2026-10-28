@@ -1,4 +1,4 @@
-//! CrowSetup.exe: installs the crow.exe it carries for the current user.
+//! CrowFOSetup.exe: installs the CrowFO.exe it carries for the current user.
 #![no_std]
 #![no_main]
 

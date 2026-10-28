@@ -1,8 +1,8 @@
-//! Installer and uninstaller. CrowSetup.exe carries crow.exe inside it and
+//! Installer and uninstaller. CrowFOSetup.exe carries CrowFO.exe inside it and
 //! installs it for the current user only (no admin rights): the app goes to
-//! %LOCALAPPDATA%\Programs\Crow, a Start menu shortcut is created and Crow is
+//! %LOCALAPPDATA%\Programs\Crow FO, a Start menu shortcut is created and it is
 //! listed in "Installed apps" so it can be removed like any other program.
-//! `crow.exe --uninstall` shows the matching uninstall window.
+//! `CrowFO.exe --uninstall` shows the matching uninstall window.
 
 use crate::app::{Fonts, WM_CROW_QUIT};
 use crate::ffi::*;
@@ -13,7 +13,7 @@ use crate::uikit::*;
 use crate::util::*;
 use alloc::string::String;
 
-const UNINSTALL_KEY: &[u16] = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Crow");
+const UNINSTALL_KEY: &[u16] = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\CrowFO");
 const MARGIN: f32 = 18.0;
 const BAR: f32 = 44.0;
 
@@ -51,7 +51,7 @@ struct Dlg {
 
 static mut DLG: *mut Dlg = core::ptr::null_mut();
 
-/// Process hardening shared by crow.exe and the installer: DLLs only from
+/// Process hardening shared by CrowFO.exe and the installer: DLLs only from
 /// System32 and the app folder, no images from network shares or low
 /// integrity locations, and no legacy injection points.
 pub unsafe fn harden() {
@@ -64,16 +64,16 @@ pub unsafe fn harden() {
 
 pub fn install_dir() -> WString {
     let base = env(w!("LOCALAPPDATA"));
-    wcat(&[&base, w!("\\Programs\\Crow")])
+    wcat(&[&base, w!("\\Programs\\Crow FO")])
 }
 fn start_menu_link() -> WString {
-    wcat(&[&env(w!("APPDATA")), w!("\\Microsoft\\Windows\\Start Menu\\Programs\\Crow.lnk")])
+    wcat(&[&env(w!("APPDATA")), w!("\\Microsoft\\Windows\\Start Menu\\Programs\\Crow FO.lnk")])
 }
 
 /// Asks a running Crow to save and quit, and waits for it.
 fn quit_running() {
     unsafe {
-        let h = FindWindowW(w!("CrowHost").as_ptr(), core::ptr::null());
+        let h = FindWindowW(w!("CrowFOHost").as_ptr(), core::ptr::null());
         if h == 0 {
             return;
         }
@@ -111,7 +111,7 @@ fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
     mkdir(&base);
     let dir = install_dir();
     mkdir(&dir);
-    let exe = wcat(&[&dir, w!("\\crow.exe")]);
+    let exe = wcat(&[&dir, w!("\\CrowFO.exe")]);
     // the old process may need a moment to let go of its file
     let mut ok = false;
     for _ in 0..20 {
@@ -126,7 +126,7 @@ fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
     }
     unsafe { store::create_link(&start_menu_link(), &exe) };
     let key = UNINSTALL_KEY;
-    store::reg_str(key, Some(w!("DisplayName")), w!("Crow"));
+    store::reg_str(key, Some(w!("DisplayName")), w!("Crow FO"));
     store::reg_str(key, Some(w!("DisplayVersion")), &to_w(env!("CARGO_PKG_VERSION")));
     store::reg_str(key, Some(w!("Publisher")), &to_w(env!("CARGO_PKG_AUTHORS")));
     store::reg_str(key, Some(w!("DisplayIcon")), &wcat(&[&exe, w!(",0")]));
@@ -199,7 +199,7 @@ fn do_uninstall(restore: bool) {
         }
         remove_tree(&root);
     }
-    remove_tree(&wcat(&[&env(w!("LOCALAPPDATA")), w!("\\Crow")]));
+    remove_tree(&wcat(&[&env(w!("LOCALAPPDATA")), w!("\\Crow FO")]));
     // A running program can't delete its own file, but it can move it. It goes
     // to the temp folder, which Windows cleans up, and the folder is removed.
     let dir = parent_dir(&exe).to_vec();
@@ -356,7 +356,7 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
         }
         let (tx, ty) = (ui.x + 72.0 * sc, ui.y + 4.0 * sc);
         let (tc, mc) = (th.text, th.muted);
-        let title = if d.uninstall { tr("uninstall.title") } else { "Crow" };
+        let title = if d.uninstall { tr("uninstall.title") } else { "Crow FO" };
         ui.text(title, tx, ty, 22.0, FW_SEMIBOLD, tc, false);
         let mut sub = String::from(if d.uninstall { "" } else { tr("setup.subtitle") });
         if !d.uninstall {
@@ -448,7 +448,7 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
             frame(d, true);
         }
         2 => {
-            let exe = wz(&wcat(&[&install_dir(), w!("\\crow.exe")]));
+            let exe = wz(&wcat(&[&install_dir(), w!("\\CrowFO.exe")]));
             ShellExecuteW(0, core::ptr::null(), exe.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL);
             d.quit = true;
         }
@@ -508,7 +508,7 @@ fn run(uninstall: bool, payload: &'static [u8]) {
         }));
         DLG = d;
         let m = (MARGIN * sc) as i32;
-        let title = wz(&to_w(if uninstall { tr("uninstall.title") } else { "Crow" }));
+        let title = wz(&to_w(if uninstall { tr("uninstall.title") } else { "Crow FO" }));
         d.hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_APPWINDOW, w!("CrowDialog").as_ptr(), title.as_ptr(), WS_POPUP,
             x - m, y - m, w + 2 * m, h + 2 * m, 0, 0, inst, core::ptr::null());
         frame(d, true);
@@ -543,7 +543,7 @@ fn reg_has(path: &[u16], value: Option<&[u16]>) -> bool {
     }
 }
 
-/// Entry point of CrowSetup.exe. `/S` installs without any window, for winget
+/// Entry point of CrowFOSetup.exe. `/S` installs without any window, for winget
 /// and scripts. An update keeps the current startup and desktop menu choices,
 /// a new install turns both on.
 pub fn setup(payload: &'static [u8]) {
@@ -551,11 +551,11 @@ pub fn setup(payload: &'static [u8]) {
     let silent = cl.split_whitespace().skip(1).any(|a| a.eq_ignore_ascii_case("/S") || a.eq_ignore_ascii_case("--silent"));
     if silent {
         let fresh = installed_version().is_none();
-        let startup = fresh || reg_has(store::RUN_KEY, Some(w!("Crow")));
+        let startup = fresh || reg_has(store::RUN_KEY, Some(w!("Crow FO")));
         let menu = fresh || reg_has(store::DESK_KEY, None);
         let ok = install(payload, startup, menu);
         if ok {
-            let exe = wz(&wcat(&[&install_dir(), w!("\\crow.exe")]));
+            let exe = wz(&wcat(&[&install_dir(), w!("\\CrowFO.exe")]));
             unsafe { ShellExecuteW(0, core::ptr::null(), exe.as_ptr(), w!("--background").as_ptr(), core::ptr::null(), SW_SHOWNORMAL) };
         }
         unsafe { ExitProcess(if ok { 0 } else { 1 }) };
@@ -563,7 +563,7 @@ pub fn setup(payload: &'static [u8]) {
     run(false, payload);
 }
 
-/// `crow.exe --uninstall`, started from "Installed apps".
+/// `CrowFO.exe --uninstall`, started from "Installed apps".
 pub fn uninstall() {
     run(true, &[]);
 }
