@@ -319,7 +319,7 @@ fn about(app: &mut App, ui: &mut Ui) {
     let half = (ui.w - ui.s(8.0)) / 2.0;
     let x0 = ui.x;
     let x1 = x0 + half + ui.s(8.0);
-    let site = ui.button(1890, tr("prefs.project_page"), Some(Ic::Open), 0, x0, half);
+    let site = ui.button(1890, tr("prefs.project_page"), Some(Ic::GitHub), 0, x0, half);
     let ini = ui.button(1900, tr("prefs.edit_ini"), Some(Ic::File), 0, x1, half);
     ui.y += ui.s(42.0);
     let quit = ui.button(1910, tr("prefs.quit"), Some(Ic::Power), 2, x0, half);
