@@ -18,6 +18,11 @@ pub extern "system" fn entry() -> ! {
             OleInitialize(core::ptr::null_mut());
             ExitProcess(if snapshot::run(&util::to_w(dir)) { 0 } else { 1 });
         }
+        if let Some(p) = cl.find("--demo") {
+            let dir = cl[p + 6..].trim().trim_matches('"');
+            OleInitialize(core::ptr::null_mut());
+            ExitProcess(if snapshot::demo(&util::to_w(dir)) { 0 } else { 1 });
+        }
         if let Some(p) = cl.find("--export-art") {
             let dir = cl[p + 12..].trim().trim_matches('"');
             ExitProcess(if art::export(&util::to_w(dir)) { 0 } else { 1 });

@@ -2,12 +2,7 @@
 
 Crow FO (Folder Organizer) is a tiny, highly customizable desktop folder organizer for Windows. Group your shortcuts into folders that open when you hover over them, or keep them in panels that stay open.
 
-![A folder opened on hover](docs/open.png)
-
-<p>
-  <img src="docs/panel.png" alt="A panel" width="420">
-  <img src="docs/menu.png" alt="Context menu" width="280">
-</p>
+![Crow FO in action](docs/demo.gif)
 
 ## Download
 
@@ -32,6 +27,7 @@ Prefer no installer? Download `CrowFO-portable.exe` and run it from anywhere. To
 <p>
   <img src="docs/prefs.png" alt="Crow FO settings" width="440">
   <img src="docs/settings.png" alt="Folder settings" width="250">
+  <img src="docs/menu.png" alt="Context menu" width="200">
 </p>
 
 ## Footprint

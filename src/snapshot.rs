@@ -24,10 +24,10 @@ fn save(cv: &Canvas, dir: &[u16], name: &str) {
     write_file(&path, &crate::art::png_wh(&px, cv.w, cv.h));
 }
 
-pub fn run(out: &[u16]) -> bool {
-    mkdir(out);
+/// An App built from crow.ini with no real windows, for drawing offscreen.
+fn headless() -> Option<&'static mut App> {
     let ini = store::ini_path();
-    let Some(data) = read_file(&ini) else { return false };
+    let data = read_file(&ini)?;
     let cfg = Config::parse(core::str::from_utf8(&data).unwrap_or(""));
     crate::i18n::set(&cfg.g.language);
     let sc = unsafe { GetDpiForSystem() }.max(96) as f32 / 96.0;
@@ -59,6 +59,12 @@ pub fn run(out: &[u16]) -> bool {
         w.place(&a.g);
         a.wins.push(w);
     }
+    Some(a)
+}
+
+pub fn run(out: &[u16]) -> bool {
+    mkdir(out);
+    let Some(a) = headless() else { return false };
     let Some(i) = a.wins.iter().position(|w| w.cfg.mode == Mode::Hover).or(if a.wins.is_empty() { None } else { Some(0) }) else {
         return false;
     };
@@ -225,5 +231,212 @@ pub fn run(out: &[u16]) -> bool {
             save(cv, out, "11-panel-rolled.png");
         }
     }
+    true
+}
+
+fn union(a: RECT, b: RECT) -> RECT {
+    RECT { left: a.left.min(b.left), top: a.top.min(b.top), right: a.right.max(b.right), bottom: a.bottom.max(b.bottom) }
+}
+
+/// Screen position of the middle of each shortcut, found by hit testing.
+fn item_centers(a: &App, i: usize) -> Vec<(f32, f32)> {
+    let f = &a.wins[i];
+    let mut boxes: Vec<(i32, i32, i32, i32)> = Vec::new();
+    let mut y = f.panel.top;
+    while y < f.panel.bottom {
+        let mut x = f.panel.left;
+        while x < f.panel.right {
+            if let crate::folder::Hit::Item(j) = f.hit(&a.g, POINT { x: x - f.win.left, y: y - f.win.top }) {
+                while boxes.len() <= j {
+                    boxes.push((i32::MAX, i32::MAX, i32::MIN, i32::MIN));
+                }
+                let b = &mut boxes[j];
+                *b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+            }
+            x += 3;
+        }
+        y += 3;
+    }
+    boxes.iter().map(|b| ((b.0 + b.2) as f32 / 2.0, (b.1 + b.3) as f32 / 2.0)).collect()
+}
+
+/// `CrowFO.exe --demo <dir>` plays a short scripted session offscreen: the
+/// pointer opens a folder, moves over its shortcuts, leaves so it closes, then
+/// collapses and expands a panel. Folders react through the same hit testing,
+/// timings and animation steps as the real app. Every 20 ms frame of the scene
+/// is written as raw BGRA (f0000.bgra...), with the pointer in cursor.txt.
+pub fn demo(out: &[u16]) -> bool {
+    use crate::folder::Hit;
+    mkdir(out);
+    let Some(a) = headless() else { return false };
+    let Some(fi) = a.wins.iter().position(|w| w.cfg.mode == Mode::Hover) else { return false };
+    let Some(pi) = a.wins.iter().position(|w| w.cfg.mode == Mode::Panel) else { return false };
+
+    // The scene covers every window in every state it goes through.
+    let mut u = a.wins[pi].win;
+    a.wins[fi].target = 1.0;
+    a.wins[fi].t = 1.0;
+    a.wins[fi].lid = 1.0;
+    a.wins[fi].place(&a.g);
+    u = union(u, a.wins[fi].win);
+    let items = item_centers(a, fi);
+    let open_panel = a.wins[fi].panel;
+    a.wins[fi].target = 0.0;
+    a.wins[fi].t = 0.0;
+    a.wins[fi].lid = 0.0;
+    a.wins[fi].place(&a.g);
+    u = union(u, a.wins[fi].win);
+    let pad = 8;
+    let u = RECT { left: u.left - pad, top: u.top - pad, right: u.right + pad, bottom: u.bottom + pad };
+    let (sw, sh) = (u.right - u.left, u.bottom - u.top);
+
+    let ib = a.wins[fi].icon_box;
+    let icon = ((ib.left + ib.right) as f32 / 2.0, (ib.top + ib.bottom) as f32 / 2.0 - 6.0);
+    let chev = {
+        let w = &a.wins[pi];
+        let (x, y, cw, ch) = w.chevron_rect(&w.layout(&a.g));
+        (w.win.left as f32 + x + cw / 2.0, w.win.top as f32 + y + ch / 2.0)
+    };
+    let start = (open_panel.right as f32 + 40.0, open_panel.bottom as f32 - 30.0);
+    let outside = (open_panel.right as f32 + 50.0, (open_panel.top + open_panel.bottom) as f32 / 2.0);
+    let it = |k: usize| items.get(k).copied().unwrap_or(icon);
+
+    // Pointer keyframes (ms, x, y). Moves between them are eased.
+    let keys: [(f32, (f32, f32)); 13] = [
+        (0.0, start), (500.0, start), (1200.0, icon), (1700.0, icon),
+        (2000.0, it(0)), (2350.0, it(0)), (2600.0, it(1)), (2950.0, it(1)),
+        (3250.0, it(5)), (3600.0, it(5)), (4100.0, outside), (4900.0, chev), (8200.0, chev),
+    ];
+    let clicks = [5100.0f32, 6600.0];
+    let end = 9200.0f32;
+    let pos = |t: f32| -> (f32, f32) {
+        if t >= keys[keys.len() - 1].0 {
+            // glide back to where it started, so the GIF loops cleanly
+            let k = clamp((t - 8200.0) / (end - 8200.0), 0.0, 1.0);
+            let e = k * k * (3.0 - 2.0 * k);
+            return (chev.0 + (start.0 - chev.0) * e, chev.1 + (start.1 - chev.1) * e);
+        }
+        let mut n = 0;
+        while n + 1 < keys.len() && keys[n + 1].0 <= t {
+            n += 1;
+        }
+        let (t0, p0) = keys[n];
+        let (t1, p1) = keys[(n + 1).min(keys.len() - 1)];
+        let k = if t1 > t0 { clamp((t - t0) / (t1 - t0), 0.0, 1.0) } else { 1.0 };
+        let e = k * k * (3.0 - 2.0 * k);
+        (p0.0 + (p1.0 - p0.0) * e, p0.1 + (p1.1 - p0.1) * e)
+    };
+
+    let dt = 20.0f32;
+    let frames = (end / dt) as i32;
+    let mut cursor = alloc::string::String::new();
+    let mut rest_ms = 0.0f32;
+    let mut away_ms = 0.0f32;
+    let mut last = pos(0.0);
+    let mut scene: Vec<u32> = alloc::vec![0; (sw * sh) as usize];
+    for n in 0..frames {
+        let t = n as f32 * dt;
+        let c = pos(t);
+        let moved = abs(c.0 - last.0) + abs(c.1 - last.1);
+        last = c;
+        rest_ms = if moved < 0.5 { rest_ms + dt } else { 0.0 };
+        let mut pressed = 0;
+        for &ct in &clicks {
+            if t >= ct && t < ct + dt {
+                // same as clicking the collapse button
+                let f = &mut a.wins[pi];
+                let collapsed = !f.cfg.collapsed;
+                f.cfg.collapsed = false;
+                f.place(&a.g);
+                f.cfg.collapsed = collapsed;
+            }
+            if t >= ct - 40.0 && t < ct + 100.0 {
+                pressed = 1;
+            }
+        }
+        for k in 0..a.wins.len() {
+            let f = &mut a.wins[k];
+            let cp = POINT { x: c.0 as i32, y: c.1 as i32 };
+            let pt = POINT { x: cp.x - f.win.left, y: cp.y - f.win.top };
+            let h = if crate::app::in_rect(&f.win, cp) { f.hit(&a.g, pt) } else { Hit::None };
+            f.mouse_in = h != Hit::None;
+            f.hover = if let Hit::Item(j) = h { j as i32 } else { -1 };
+            f.gear_on = matches!(h, Hit::Header | Hit::Title | Hit::Gear | Hit::Chevron);
+            f.gear_hot = h == Hit::Gear;
+            f.chev_hot = h == Hit::Chevron;
+            f.grip_hot = h == Hit::Grip;
+            f.grip_near = f.mouse_in && f.near_grip(&a.g, pt);
+            if f.cfg.mode == Mode::Hover {
+                // hover intent: open once the pointer rests on the icon, close
+                // a moment after it leaves
+                if f.target == 0.0 && h == Hit::Icon && rest_ms >= 40.0 {
+                    f.target = 1.0;
+                    f.place(&a.g);
+                }
+                away_ms = if f.target > 0.0 && h == Hit::None { away_ms + dt } else { 0.0 };
+                if f.target > 0.0 && away_ms > a.g.close_delay as f32 {
+                    f.target = 0.0;
+                    f.hover = -1;
+                }
+            }
+            let (t0, r0) = (f.t, f.roll);
+            f.step(&a.g, dt);
+            if f.cfg.mode == Mode::Hover && t0 > 0.0 && f.t == 0.0 && f.target == 0.0 {
+                f.place(&a.g);
+            }
+            if f.cfg.mode == Mode::Panel && f.cfg.collapsed && r0 > 0.0 && f.roll <= 0.0 {
+                f.place(&a.g);
+            }
+        }
+        for p in scene.iter_mut() {
+            *p = 0xFF202125;
+        }
+        for k in 0..a.wins.len() {
+            a.wins[k].draw(&a.g, &mut a.fonts);
+            let f = &a.wins[k];
+            if let Some(cv) = f.frame() {
+                let src = unsafe { core::slice::from_raw_parts(cv.px, (cv.w * cv.h) as usize) };
+                let (ox, oy) = (f.win.left - u.left, f.win.top - u.top);
+                for y in 0..cv.h {
+                    let sy = oy + y;
+                    if sy < 0 || sy >= sh {
+                        continue;
+                    }
+                    for x in 0..cv.w {
+                        let sx = ox + x;
+                        if sx < 0 || sx >= sw {
+                            continue;
+                        }
+                        let d = &mut scene[(sy * sw + sx) as usize];
+                        *d = over(*d, src[(y * cv.w + x) as usize]);
+                    }
+                }
+            }
+        }
+        let bytes = unsafe { core::slice::from_raw_parts(scene.as_ptr() as *const u8, scene.len() * 4) };
+        let mut name = alloc::string::String::from("f");
+        let mut num = alloc::string::String::new();
+        fmt_int(n as i64 + 10000, &mut num);
+        name.push_str(&num[1..]);
+        name.push_str(".bgra");
+        write_file(&wcat(&[out, w!("\\"), &to_w(&name)]), bytes);
+        fmt_int((c.0 - u.left as f32) as i64, &mut cursor);
+        cursor.push(' ');
+        fmt_int((c.1 - u.top as f32) as i64, &mut cursor);
+        cursor.push(' ');
+        fmt_int(pressed, &mut cursor);
+        cursor.push('\n');
+    }
+    let mut head = alloc::string::String::new();
+    fmt_int(sw as i64, &mut head);
+    head.push(' ');
+    fmt_int(sh as i64, &mut head);
+    head.push(' ');
+    fmt_int(frames as i64, &mut head);
+    head.push(' ');
+    fmt_int(dt as i64, &mut head);
+    head.push('\n');
+    head.push_str(&cursor);
+    write_file(&wcat(&[out, w!("\\cursor.txt")]), head.as_bytes());
     true
 }
