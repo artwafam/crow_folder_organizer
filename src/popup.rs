@@ -29,6 +29,7 @@ pub enum Act {
     NewFolder,
     NewPanel,
     AppSettings,
+    DeleteFolder,
 }
 
 pub struct MenuSpec {
@@ -54,7 +55,6 @@ pub struct SettingsState {
     pub hex: Edit,
     /// Which text field has the keyboard: 0 none, 1 name, 2 hex.
     pub focus: u8,
-    pub confirm_delete: f64,
     /// Values shown while a size slider is dragged (applied on release).
     pub preview: Option<(u32, f32)>,
 }
@@ -255,6 +255,9 @@ impl App {
             entries.push((Act::NewPanel, Ic::Panel, tr("menu.new_panel"), false));
             entries.push((Act::Sep, Ic::Plus, "", false));
             entries.push((Act::AppSettings, Ic::Palette, tr("menu.app_settings"), false));
+            entries.push((Act::Sep, Ic::Plus, "", false));
+            let label = if f.cfg.mode == crate::config::Mode::Panel { tr("pop.delete_panel") } else { tr("pop.delete_folder") };
+            entries.push((Act::DeleteFolder, Ic::Trash, label, true));
         }
         let sc = f.sc;
         let n_items = entries.iter().filter(|e| e.0 != Act::Sep).count() as f32;
@@ -283,7 +286,6 @@ impl App {
             name: Edit::new(&to_w(&f.cfg.name), 80, false),
             hex: Edit::new(&[], 7, false),
             focus: 0,
-            confirm_delete: 0.0,
             preview: None,
         };
         let mut p = Popup::new(Kind::Settings(st), sc);

@@ -171,26 +171,14 @@ fn folder_tab(app: &mut App, i: usize, st: &mut SettingsState, ui: &mut Ui) {
     }
 
     ui.space(12.0);
-    let confirming = now_ms() - st.confirm_delete < 4000.0;
-    let (label, style) = if confirming { (tr("pop.delete_confirm"), 3) } else if app.wins[i].cfg.mode == Mode::Panel { (tr("pop.delete_panel"), 2) } else { (tr("pop.delete_folder"), 2) };
-    let can = app.wins.len() > 1;
+    // Nothing is lost here, the shortcuts go back to the desktop, so one click is enough.
+    let label = if app.wins[i].cfg.mode == Mode::Panel { tr("pop.delete_panel") } else { tr("pop.delete_folder") };
     let (x, w) = (ui.x, ui.w);
-    if can && ui.button(700, label, Some(Ic::Trash), style, x, w) {
-        if confirming {
-            app.delete_folder(i);
-        } else {
-            st.confirm_delete = now_ms();
-        }
+    if ui.button(700, label, Some(Ic::Trash), 2, x, w) {
+        app.delete_folder(i);
+        return;
     }
-    if can {
-        ui.y += ui.s(34.0);
-    }
-    if !can {
-        let m = ui.th.muted;
-        let (x, y) = (ui.x, ui.y);
-        ui.text(tr("pop.last_folder"), x, y, 12.0, FW_NORMAL, m, false);
-        ui.y += ui.s(18.0);
-    }
+    ui.y += ui.s(34.0);
 }
 
 /// Slider for sizes that need icons redrawn: shows the value live and applies

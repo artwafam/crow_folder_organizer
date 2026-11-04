@@ -17,7 +17,7 @@
   <Identity Name="Crow.FolderOrganizer" Publisher="CN=Crow" Version="1.0.0.0" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Crow FO</DisplayName>
-    <PublisherDisplayName>Lucas Melo</PublisherDisplayName>
+    <PublisherDisplayName>Lucas "Shoyguer" Melo</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
   </Properties>

@@ -91,15 +91,22 @@ impl App {
         self.save();
     }
 
+    /// Deletes a folder or panel. Its shortcuts go back to the desktop first.
     pub fn delete_folder(&mut self, i: usize) {
-        if self.wins.len() <= 1 {
-            return;
-        }
         self.close_popup(false);
         let n = self.wins[i].items.len();
+        let mut all_moved = true;
         for j in 0..n {
             let p = self.wins[i].item_path(j);
-            store::export_to_desktop(&p);
+            all_moved &= store::export_to_desktop(&p);
+        }
+        if !all_moved {
+            // Something could not be moved (a file in use, for example). The
+            // folder stays with whatever is left, so no shortcut gets lost.
+            self.wins[i].rescan();
+            self.refresh(i);
+            self.save();
+            return;
         }
         let dir = self.wins[i].dir.clone();
         self.remove_folder(i);
@@ -197,6 +204,7 @@ impl App {
             }
             (Act::Delete, Some(j)) => self.delete_item(i, j),
             (Act::Settings, _) => self.open_settings(i),
+            (Act::DeleteFolder, _) => self.delete_folder(i),
             (Act::Collapse, _) => self.toggle_collapse(i),
             (Act::AppSettings, _) => self.open_prefs(),
             (Act::RenameFolder, _) => self.start_edit(i, EditTarget::Title, None),
