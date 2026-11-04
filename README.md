@@ -16,18 +16,23 @@ Prefer no installer? Download `CrowFO-portable.exe` and run it from anywhere. To
 
 ## Features
 
-- Folders open as soon as the pointer settles on them, with a smooth animation. Any folder can also be a panel that stays open, and panels collapse to their header with one click.
-- Drag shortcuts from the desktop or Explorer onto a folder to move them in. Drag them out to put them back on the desktop.
-- Click a folder name to rename it right there.
-- A settings button appears in the corner of each folder, with colors, icons, sizes and layout. Changes show up live.
-- Use your own PNG, ICO, JPG or SVG icons for folders and single shortcuts. Single color SVG icons can be tinted.
-- A settings window for the language, appearance, animation speed and the defaults for new folders.
-- Available in English, Español, Português (Brasil), Русский, 简体中文 and 繁體中文.
+- Customizable folders and panels that can be used to store multiple shortcuts and organize your desktop
+- Smoothly animated (also customizable)
+- Customizable icons
+- SUPER small footprint on your computer
+- Did I say it is customizable?
+- Available in:
+  - English
+  - Español
+  - Português Brasileiro
+  - Русский
+  - 简体中文
+  - 繁體中文
 
 <p>
-  <img src="docs/prefs.png" alt="Crow FO settings" width="440">
-  <img src="docs/settings.png" alt="Folder settings" width="250">
-  <img src="docs/menu.png" alt="Context menu" width="200">
+  <img src="docs/prefs.png" alt="Crow FO settings" height="400">
+  <img src="docs/settings.png" alt="Folder settings" height="400">
+  <img src="docs/menu.png" alt="Context menu" width="300">
 </p>
 
 ## Footprint
