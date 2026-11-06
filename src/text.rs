@@ -18,6 +18,13 @@ pub fn font(face: &str, px: i32, weight: i32) -> HFONT {
     unsafe { CreateFontW(-px, 0, 0, 0, weight, 0, 0, 0, DEFAULT_CHARSET, 0, 0, ANTIALIASED_QUALITY, 0, f.as_ptr()) }
 }
 
+/// DrawTextW reads the first character even when the length is 0, and an
+/// empty Rust slice doesn't point at real memory. That crashed the uninstall
+/// window, so empty text gets a real empty string here.
+fn ptr(s: &[u16]) -> *const u16 {
+    if s.is_empty() { w!("").as_ptr() } else { s.as_ptr() }
+}
+
 /// Renders `s` wrapped into at most `lines` lines of width `max_w`.
 pub fn render(s: &[u16], f: HFONT, max_w: i32, lines: i32, center: bool) -> Mask {
     let s = trim_nul(s);
@@ -34,7 +41,7 @@ pub fn render(s: &[u16], f: HFONT, max_w: i32, lines: i32, center: bool) -> Mask
             flags |= DT_SINGLELINE;
         }
         let mut r = RECT { left: 0, top: 0, right: max_w, bottom: lh * lines };
-        DrawTextW(dc, s.as_ptr(), s.len() as i32, &mut r, flags | DT_CALCRECT);
+        DrawTextW(dc, ptr(s), s.len() as i32, &mut r, flags | DT_CALCRECT);
         let h = (r.bottom - r.top).clamp(lh, lh * lines);
         SelectObject(dc, old);
         DeleteDC(dc);
@@ -47,7 +54,7 @@ pub fn render(s: &[u16], f: HFONT, max_w: i32, lines: i32, center: bool) -> Mask
         SetBkMode(cv.dc, TRANSPARENT);
         SetTextColor(cv.dc, 0x00FF_FFFF);
         let mut rr = RECT { left: 0, top: 0, right: w, bottom: h };
-        DrawTextW(cv.dc, s.as_ptr(), s.len() as i32, &mut rr, flags);
+        DrawTextW(cv.dc, ptr(s), s.len() as i32, &mut rr, flags);
         GdiFlush();
         SelectObject(cv.dc, old);
         let px = core::slice::from_raw_parts(cv.px, (w * h) as usize);
@@ -74,7 +81,7 @@ pub fn measure(items: &[WString], face: &str, px: i32, max_w: i32) -> (i32, i32)
         for it in items {
             let s = stem(it);
             let mut r = RECT { left: 0, top: 0, right: max_w, bottom: 0 };
-            DrawTextW(dc, s.as_ptr(), s.len() as i32, &mut r, DT_CALCRECT | DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_CENTER);
+            DrawTextW(dc, ptr(s), s.len() as i32, &mut r, DT_CALCRECT | DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_CENTER);
             if r.bottom - r.top > lh + lh / 2 {
                 lines = 2;
                 break;
