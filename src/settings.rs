@@ -171,7 +171,7 @@ fn folder_tab(app: &mut App, i: usize, st: &mut SettingsState, ui: &mut Ui) {
     }
 
     ui.space(12.0);
-    // Nothing is lost here, the shortcuts go back to the desktop, so one click is enough.
+    // No confirmation needed, the shortcuts just go back to the desktop.
     let label = if app.wins[i].cfg.mode == Mode::Panel { tr("pop.delete_panel") } else { tr("pop.delete_folder") };
     let (x, w) = (ui.x, ui.w);
     if ui.button(700, label, Some(Ic::Trash), 2, x, w) {

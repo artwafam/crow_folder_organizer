@@ -91,7 +91,7 @@ impl App {
         self.save();
     }
 
-    /// Deletes a folder or panel. Its shortcuts go back to the desktop first.
+    /// Deletes a folder or panel and puts its shortcuts back on the desktop.
     pub fn delete_folder(&mut self, i: usize) {
         self.close_popup(false);
         let n = self.wins[i].items.len();
@@ -101,8 +101,8 @@ impl App {
             all_moved &= store::export_to_desktop(&p);
         }
         if !all_moved {
-            // Something could not be moved (a file in use, for example). The
-            // folder stays with whatever is left, so no shortcut gets lost.
+            // Some file couldn't be moved, maybe because it's open. Keep the
+            // folder with what's left instead of losing it.
             self.wins[i].rescan();
             self.refresh(i);
             self.save();

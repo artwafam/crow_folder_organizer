@@ -1,6 +1,6 @@
 [package]
 name = "crow-setup"
-version = "1.0.0"
+version.workspace = true
 edition = "2021"
 description = "Installer for Crow FO"
 authors.workspace = true

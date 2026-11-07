@@ -127,7 +127,7 @@ fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
     unsafe { store::create_link(&start_menu_link(), &exe) };
     let key = UNINSTALL_KEY;
     store::reg_str(key, Some(w!("DisplayName")), w!("Crow FO"));
-    store::reg_str(key, Some(w!("DisplayVersion")), &to_w(env!("CARGO_PKG_VERSION")));
+    store::reg_str(key, Some(w!("DisplayVersion")), &to_w(env!("CROW_VERSION")));
     store::reg_str(key, Some(w!("Publisher")), &to_w(env!("CARGO_PKG_AUTHORS")));
     store::reg_str(key, Some(w!("DisplayIcon")), &wcat(&[&exe, w!(",0")]));
     store::reg_str(key, Some(w!("InstallLocation")), &dir);
@@ -361,7 +361,7 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
         let mut sub = String::from(if d.uninstall { "" } else { tr("setup.subtitle") });
         if !d.uninstall {
             sub.push_str("  ·  ");
-            sub.push_str(env!("CARGO_PKG_VERSION"));
+            sub.push_str(env!("CROW_VERSION"));
         }
         ui.text(&sub, tx, ty + 32.0 * sc, 12.5, FW_NORMAL, mc, false);
         ui.y += 80.0 * sc;

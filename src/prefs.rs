@@ -309,7 +309,7 @@ fn about(app: &mut App, ui: &mut Ui) {
     ui.text("Crow FO", x, y, 22.0, FW_SEMIBOLD, tc, false);
     let mut v = String::from(tr("prefs.version"));
     v.push(' ');
-    v.push_str(env!("CARGO_PKG_VERSION"));
+    v.push_str(env!("CROW_VERSION"));
     ui.text(&v, x, y + 32.0 * sc, 13.0, FW_NORMAL, mc, false);
     let by = tr("prefs.created_by").replace("{}", env!("CARGO_PKG_AUTHORS"));
     ui.text(&by, x, y + 52.0 * sc, 13.0, FW_NORMAL, mc, false);

@@ -10,14 +10,33 @@ mod res {
 
     pub const LANG: u16 = 0x0409; // English (US)
 
-    /// The package version from Cargo.toml as four numbers.
+    /// The Cargo.toml version as four numbers. The last one is the build
+    /// number from CROW_BUILD, which the GitHub workflow sets. It stays 0 on
+    /// local builds.
     fn version() -> [u16; 4] {
         let mut v = [0u16; 4];
         let s = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
         for (i, n) in s.split(['.', '-', '+']).take(3).enumerate() {
             v[i] = n.parse().unwrap_or(0);
         }
+        v[3] = std::env::var("CROW_BUILD").ok().and_then(|b| b.trim().parse::<u32>().ok()).unwrap_or(0).min(65535) as u16;
         v
+    }
+
+    /// Version shown in the About page and in the file properties. Test
+    /// builds from the workflow get a label at the end, like
+    /// "1.2.0-dev.57+3f2a1bc".
+    pub fn display_version() -> String {
+        let base = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
+        let label = std::env::var("CROW_VERSION_LABEL").unwrap_or_default();
+        let label = label.trim();
+        if label.is_empty() {
+            base
+        } else if base.contains('-') {
+            format!("{base}.{label}")
+        } else {
+            format!("{base}-{label}")
+        }
     }
 
     /// The authors from Cargo.toml, shown as the publisher of the file.
@@ -61,7 +80,10 @@ mod res {
         let ms = ((version[0] as u32) << 16) | version[1] as u32;
         let ls = ((version[2] as u32) << 16) | version[3] as u32;
         let mut fixed = Vec::new();
-        for d in [0xFEEF04BDu32, 0x0001_0000, ms, ls, ms, ls, 0x3F, 0, 0x0004_0004, if dll { 2 } else { 1 }, 0, 0, 0] {
+        let display = display_version();
+        // test builds are flagged as prerelease (VS_FF_PRERELEASE)
+        let flags = if display.contains('-') { 2 } else { 0 };
+        for d in [0xFEEF04BDu32, 0x0001_0000, ms, ls, ms, ls, 0x3F, flags, 0x0004_0004, if dll { 2 } else { 1 }, 0, 0, 0] {
             fixed.extend_from_slice(&d.to_le_bytes());
         }
         let ver = format!("{}.{}.{}.{}", version[0], version[1], version[2], version[3]);
@@ -74,7 +96,7 @@ mod res {
             string("LegalCopyright", &format!("Copyright (c) {author}")),
             string("OriginalFilename", file),
             string("ProductName", "Crow FO"),
-            string("ProductVersion", &ver),
+            string("ProductVersion", &display),
         ]);
         let sfi = node("StringFileInfo", &[], 0, true, &[table]);
         let mut tr = Vec::new();
@@ -87,8 +109,8 @@ mod res {
 
     const MANIFEST: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="Crow.FolderOrganizer" version="1.0.0.0" processorArchitecture="amd64"/>
-  <description>Crow - organizador de pastas</description>
+  <assemblyIdentity type="win32" name="Crow.FolderOrganizer" version="{VERSION}" processorArchitecture="amd64"/>
+  <description>Crow FO</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security>
   </trustInfo>
@@ -163,8 +185,14 @@ mod res {
         }
         entry(&mut out, 16, 1, 0x0030, &version_info(desc, file, dll));
         if !dll {
-            entry(&mut out, 24, 1, 0x0030, MANIFEST.as_bytes());
+            let v = version();
+            let manifest = MANIFEST.replace("{VERSION}", &format!("{}.{}.{}.{}", v[0], v[1], v[2], v[3]));
+            entry(&mut out, 24, 1, 0x0030, manifest.as_bytes());
         }
         std::fs::File::create(path).unwrap().write_all(&out).unwrap();
+        // the app reads it with env!("CROW_VERSION")
+        println!("cargo:rustc-env=CROW_VERSION={}", display_version());
+        println!("cargo:rerun-if-env-changed=CROW_BUILD");
+        println!("cargo:rerun-if-env-changed=CROW_VERSION_LABEL");
     }
 }
