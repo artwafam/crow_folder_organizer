@@ -1,60 +1,132 @@
-name: Build
+name: Release
 
-# Builds Crow FO and its installer on every push and pull request.
-# Pushing a tag like v1.2.0 also publishes a GitHub release with the files.
+# Publishes a release. It never runs on its own: commits, tags and pull
+# requests don't start it. To publish, click "Run workflow" in the Actions
+# tab, on the main branch.
+#
+# The version comes from Cargo.toml (tools\release.ps1 changes it). The run
+# builds, tests, creates the tag v<version> on that commit and publishes the
+# release. If that version was already released, it stops before building.
+# Versions with a suffix, like 1.2.0-beta.1, come out as pre-releases.
+
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
+# One release at a time, and a running one is never cancelled.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
-  contents: write
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # No file can go over 2 MB.
+  MAX_SIZE: 2097152
 
 jobs:
-  windows:
+  build:
+    name: Build and test
     runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # needed by the attestation step
+      id-token: write
+      attestations: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      display: ${{ steps.version.outputs.display }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      artifact: ${{ steps.version.outputs.artifact }}
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Rust
         run: |
           rustup toolchain install stable --profile minimal
+          rustup default stable
           rustup target add x86_64-pc-windows-msvc
+          rustc --version
 
       - name: Cache build
         uses: Swatinem/rust-cache@v2
 
+      - name: Read the version
+        id: version
+        env:
+          REF: ${{ github.ref }}
+          RUN: ${{ github.run_number }}
+        run: |
+          if ($env:REF -ne 'refs/heads/main') {
+            Write-Output "::error::Releases come from main. This run was started on $env:REF."
+            exit 1
+          }
+          $meta = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $version = ($meta.packages | Where-Object name -eq 'crow').version
+          $odd = $meta.packages | Where-Object version -ne $version
+          if ($odd) {
+            Write-Output "::error file=Cargo.toml::These crates have their own version: $($odd.name -join ', '). Use version.workspace = true in each one."
+            exit 1
+          }
+          if (git ls-remote --tags origin "refs/tags/v$version") {
+            Write-Output "::error file=Cargo.toml::Version $version was already released. Change it with tools\release.ps1 first."
+            exit 1
+          }
+          $prerelease = $version.Contains('-').ToString().ToLower()
+          # read by build/res.rs
+          "CROW_BUILD=$env:RUN" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "display=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$prerelease" >> $env:GITHUB_OUTPUT
+          "artifact=CrowFO-$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Building Crow FO $version (file version $(($version -split '[-+]')[0]).$env:RUN)"
+
       - name: Build Crow FO
         run: cargo build --release -p crow
 
+      - name: Build the Windows 11 menu handler
+        run: cargo build --release -p crow_menu
+
+      # The installer has CrowFO.exe inside it, so it's built last.
       - name: Build the installer
         run: cargo build --release -p crow-setup
 
-      - name: Collect files
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory dist | Out-Null
-          Copy-Item target/x86_64-pc-windows-msvc/release/CrowFOSetup.exe dist/
-          Copy-Item target/x86_64-pc-windows-msvc/release/CrowFO.exe dist/CrowFO-portable.exe
-          Get-FileHash dist/* -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
-            Set-Content dist/SHA256SUMS.txt
+      - name: Test
+        timeout-minutes: 5
+        run: >-
+          ./tools/ci-test.ps1
+          -Version '${{ steps.version.outputs.version }}'
+          -Display '${{ steps.version.outputs.display }}'
+          -Build ${{ github.run_number }}
+          -MaxSize $env:MAX_SIZE
 
-      - name: Upload artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
+      - name: Collect files
+        run: |
+          $rel = 'target/x86_64-pc-windows-msvc/release'
+          New-Item -ItemType Directory dist | Out-Null
+          # Same names on every release, so download links don't break.
+          Copy-Item "$rel/CrowFOSetup.exe" dist/
+          Copy-Item "$rel/CrowFO.exe" dist/CrowFO-portable.exe
+
+      - name: Upload for signing
+        id: unsigned
+        if: false # turn this on along with SignPath below
+        uses: actions/upload-artifact@v7
         with:
-          name: crowfo-windows
+          name: unsigned
           path: dist/
 
       # Free code signing for open source projects through the SignPath
       # Foundation (https://signpath.org). Once the project is accepted, add the
       # SIGNPATH_API_TOKEN secret and the IDs from the SignPath dashboard, then
-      # remove the "if: false" line. The signed files replace the ones in dist.
-      # Signed builds no longer trigger the SmartScreen warning, and they can
-      # carry the Windows 11 context menu.
+      # remove both "if: false" lines. The signed files replace the ones in
+      # dist. Signed builds no longer trigger the SmartScreen warning, and they
+      # can carry the Windows 11 context menu. One catch: the installer still
+      # has the unsigned CrowFO.exe inside. Build it again from the signed one
+      # by pointing CROW_EXE at it.
       - name: Sign with SignPath
         if: false
         uses: signpath/github-action-submit-signing-request@v1
@@ -63,13 +135,68 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: crow-fo
           signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: dist
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Checksums and summary
+        env:
+          DISPLAY_VERSION: ${{ steps.version.outputs.display }}
+        run: |
+          $sums = Get-FileHash dist/* -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
+          $sums | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          $out = @("## Crow FO $env:DISPLAY_VERSION", '', '| File | Size | SHA-256 |', '|---|---:|---|')
+          foreach ($f in Get-ChildItem dist/*.exe) {
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            $out += ('| {0} | {1:N0} KB | `{2}` |' -f $f.Name, ($f.Length / 1KB), $h)
+          }
+          $out += ''
+          $out | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      # GitHub signs a record saying these files were built here, from this
+      # commit. Anyone can check a download with:
+      #   gh attestation verify CrowFOSetup.exe -R <owner>/<repo>
+      - name: Attest build provenance
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@v4
         with:
-          files: dist/*
+          subject-path: |
+            dist/CrowFOSetup.exe
+            dist/CrowFO-portable.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.version.outputs.artifact }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
+      - name: Publish
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Crow FO ${{ needs.build.outputs.display }}
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
+          body: |
+            Download `CrowFOSetup.exe` and run it. If you'd rather not install anything, grab `CrowFO-portable.exe` instead.
+
+            Checksums are in `SHA256SUMS.txt`. You can also confirm a file came from this repository with `gh attestation verify CrowFOSetup.exe -R ${{ github.repository }}`.
