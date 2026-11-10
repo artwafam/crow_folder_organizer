@@ -148,8 +148,9 @@ mod res {
         pad4(out);
     }
 
-    /// Splits a .ico file into RT_ICON images and an RT_GROUP_ICON directory.
-    fn icon(out: &mut Vec<u8>, ico: &[u8]) {
+    /// Splits a .ico file into RT_ICON images and RT_GROUP_ICON `gid`. Image ids
+    /// start after `*next` so several icons can share one file.
+    fn icon(out: &mut Vec<u8>, ico: &[u8], gid: u16, next: &mut u16) {
         let rd16 = |o: usize| u16::from_le_bytes([ico[o], ico[o + 1]]);
         let rd32 = |o: usize| u32::from_le_bytes([ico[o], ico[o + 1], ico[o + 2], ico[o + 3]]);
         let n = rd16(4) as usize;
@@ -158,21 +159,23 @@ mod res {
         for i in 0..n {
             let e = 6 + i * 16;
             let (size, off) = (rd32(e + 8) as usize, rd32(e + 12) as usize);
-            entry(out, 3, (i + 1) as u16, 0x1010, &ico[off..off + size]);
+            *next += 1;
+            entry(out, 3, *next, 0x1010, &ico[off..off + size]);
             group.extend_from_slice(&ico[e..e + 8]); // w, h, colors, reserved, planes, bpp
             group.extend_from_slice(&(size as u32).to_le_bytes());
-            group.extend_from_slice(&((i + 1) as u16).to_le_bytes());
+            group.extend_from_slice(&next.to_le_bytes());
         }
-        entry(out, 14, 1, 0x1030, &group);
+        entry(out, 14, gid, 0x1030, &group);
     }
 
-    pub fn write(path: &std::path::Path, desc: &str, file: &str, dll: bool, ico: Option<&[u8]>) {
-        write_with(path, desc, file, dll, ico, None);
+    /// `icons[0]` becomes icon #1 (the file icon), the next ones #2, #3...
+    pub fn write(path: &std::path::Path, desc: &str, file: &str, dll: bool, icons: &[&[u8]]) {
+        write_with(path, desc, file, dll, icons, None);
     }
 
     /// Same as `write`, plus an optional binary payload stored as RCDATA #1
     /// (the installer carries CrowFO.exe this way).
-    pub fn write_with(path: &std::path::Path, desc: &str, file: &str, dll: bool, ico: Option<&[u8]>, rcdata: Option<&[u8]>) {
+    pub fn write_with(path: &std::path::Path, desc: &str, file: &str, dll: bool, icons: &[&[u8]], rcdata: Option<&[u8]>) {
         let mut out = vec![0u8; 32];
         out[4] = 32;
         out[8..12].copy_from_slice(&[0xFF, 0xFF, 0, 0]);
@@ -180,8 +183,9 @@ mod res {
         if let Some(data) = rcdata {
             entry(&mut out, 10, 1, 0x0030, data); // RT_RCDATA
         }
-        if let Some(ico) = ico {
-            icon(&mut out, ico);
+        let mut next = 0;
+        for (i, ico) in icons.iter().enumerate() {
+            icon(&mut out, ico, i as u16 + 1, &mut next);
         }
         entry(&mut out, 16, 1, 0x0030, &version_info(desc, file, dll));
         if !dll {

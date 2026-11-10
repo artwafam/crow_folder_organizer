@@ -363,13 +363,18 @@ pub fn set_desktop_menu_for(exe: &[u16], on: bool) {
     reg_str(DESK_KEY, Some(w!("Icon")), exe);
     reg_str(DESK_KEY, Some(w!("SubCommands")), w!(""));
     let a = wcat(&[DESK_KEY, w!("\\shell\\a_new")]);
+    // icons #2 to #4 inside CrowFO.exe
+    let icon = |n: &[u16]| wcat(&[exe, w!(",-"), n]);
     reg_str(&a, Some(w!("MUIVerb")), &tr("menu.new_folder"));
+    reg_str(&a, Some(w!("Icon")), &icon(w!("2")));
     reg_str(&wcat(&[&a, w!("\\command")]), None, &q(w!(" --new")));
     let b = wcat(&[DESK_KEY, w!("\\shell\\b_panel")]);
     reg_str(&b, Some(w!("MUIVerb")), &tr("menu.new_panel"));
+    reg_str(&b, Some(w!("Icon")), &icon(w!("3")));
     reg_str(&wcat(&[&b, w!("\\command")]), None, &q(w!(" --new-panel")));
     let c = wcat(&[DESK_KEY, w!("\\shell\\c_settings")]);
     reg_str(&c, Some(w!("MUIVerb")), &tr("menu.app_settings"));
+    reg_str(&c, Some(w!("Icon")), &icon(w!("4")));
     reg_str(&c, Some(w!("CommandFlags")), w!("32")); // separator above
     reg_str(&wcat(&[&c, w!("\\command")]), None, &q(w!(" --settings")));
 }

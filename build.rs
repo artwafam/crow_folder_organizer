@@ -25,10 +25,15 @@ fn main() {
     println!("cargo:rerun-if-changed=lang");
 
     let res = out_dir.join("crow.res");
-    let ico = std::fs::read("packaging/crow_embed.ico").ok();
-    res::write(&res, "Crow FO", "CrowFO.exe", false, ico.as_deref());
+    // #1 is the app icon, #2 to #4 are used by the desktop right-click menu
+    let names = ["crow_embed", "menu_new", "menu_panel", "menu_settings"];
+    let icons: Vec<Vec<u8>> = names.iter().map(|n| std::fs::read(format!("packaging/{n}.ico")).expect("icon missing")).collect();
+    let icons: Vec<&[u8]> = icons.iter().map(|v| v.as_slice()).collect();
+    res::write(&res, "Crow FO", "CrowFO.exe", false, &icons);
     println!("cargo:rerun-if-changed=build/res.rs");
-    println!("cargo:rerun-if-changed=packaging/crow_embed.ico");
+    for n in names {
+        println!("cargo:rerun-if-changed=packaging/{n}.ico");
+    }
     println!("cargo:rustc-link-arg-bins={}", res.display());
     println!("cargo:rustc-link-arg-bins=/ENTRY:entry");
     println!("cargo:rustc-link-arg-bins=/SUBSYSTEM:WINDOWS,6.02");

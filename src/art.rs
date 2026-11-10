@@ -1,5 +1,6 @@
-//! The Crow logo, and `CrowFO.exe --export-art <dir>`, which writes crow.ico and
-//! the package logos from it. Folders keep their own folder icon.
+//! The Crow logo, and `CrowFO.exe --export-art <dir>`, which writes crow.ico,
+//! the desktop menu icons and the package logos. Folders keep their own folder
+//! icon.
 
 use crate::util::*;
 use alloc::vec::Vec;
@@ -15,6 +16,22 @@ const LOGO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 
 <circle cx="166" cy="76" r="6.5" fill="#F5B841"/>
 <path d="M136 189 L132 210 M154 184 L152 210" stroke="#17181C" stroke-width="7" stroke-linecap="round"/>
 </g></svg>"##;
+
+/// Icons for the desktop right-click menu, drawn on a 16 unit grid so they stay
+/// sharp at 16 px. Amber with dark details, readable on light and dark menus.
+const AMBER: &str = r##"<defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFCF5C"/><stop offset="1" stop-color="#EE9A2E"/></linearGradient></defs>"##;
+pub const MENU_NEW: &str = r##"<path fill="url(#t)" d="M1.5 3.5C1.5 2.9 1.9 2.5 2.5 2.5H6L7.5 4H13.5C14.1 4 14.5 4.4 14.5 5V12.5C14.5 13.1 14.1 13.5 13.5 13.5H2.5C1.9 13.5 1.5 13.1 1.5 12.5Z"/><path d="M8 6.6V11.4M5.6 9H10.4" stroke="#17181C" stroke-width="1.6" stroke-linecap="round"/>"##;
+pub const MENU_PANEL: &str = r##"<rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="url(#t)"/><path d="M1.5 5.75H14.5" stroke="#17181C" stroke-width="1.2"/><rect x="4" y="8" width="3" height="3" rx=".6" fill="#17181C"/><rect x="9" y="8" width="3" height="3" rx=".6" fill="#17181C"/>"##;
+pub const MENU_SETTINGS: &str = r##"<path fill="url(#t)" d="M6.24 3.32L6.43 .97L9.57 .97L9.76 3.32L10.06 3.45L11.86 1.92L14.08 4.14L12.55 5.94L12.68 6.24L15.03 6.43L15.03 9.57L12.68 9.76L12.55 10.06L14.08 11.86L11.86 14.08L10.06 12.55L9.76 12.68L9.57 15.03L6.43 15.03L6.24 12.68L5.94 12.55L4.14 14.08L1.92 11.86L3.45 10.06L3.32 9.76L.97 9.57L.97 6.43L3.32 6.24L3.45 5.94L1.92 4.14L4.14 1.92L5.94 3.45Z"/><circle cx="8" cy="8" r="2.3" fill="#17181C"/>"##;
+
+/// A menu icon at s by s pixels, premultiplied BGRA.
+pub fn menu_icon(body: &str, s: i32) -> Vec<u32> {
+    let mut svg = alloc::string::String::from(r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">"##);
+    svg.push_str(AMBER);
+    svg.push_str(body);
+    svg.push_str("</svg>");
+    crate::svg::render(svg.as_bytes(), s, 0).unwrap_or_else(|| alloc::vec![0; (s * s) as usize])
+}
 
 /// The logo at s by s pixels, premultiplied BGRA.
 pub fn logo(s: i32) -> Vec<u32> {
@@ -98,12 +115,16 @@ pub fn png_wh(px: &[u32], w: i32, h: i32) -> Vec<u8> {
     out
 }
 
-/// Multi-size .ico with 32-bpp BMP entries.
+/// Multi-size .ico of the logo with 32-bpp BMP entries.
 fn ico(sizes: &[i32]) -> Vec<u8> {
+    ico_of(&logo, sizes)
+}
+
+fn ico_of(draw: &dyn Fn(i32) -> Vec<u32>, sizes: &[i32]) -> Vec<u8> {
     let imgs: Vec<Vec<u8>> = sizes
         .iter()
         .map(|&s| {
-            let px = logo(s);
+            let px = draw(s);
             let mut d = Vec::new();
             for v in [40u32, s as u32, (s * 2) as u32] {
                 d.extend_from_slice(&v.to_le_bytes());
@@ -148,6 +169,10 @@ pub fn export(dir: &[u16]) -> bool {
     let mut ok = write_file(&wcat(&[dir, w!("\\crow.ico")]), &ico(&[16, 20, 24, 32, 40, 48, 64, 256]));
     // A smaller set is embedded in CrowFO.exe to keep the binary small
     ok &= write_file(&wcat(&[dir, w!("\\crow_embed.ico")]), &ico(&[16, 32, 48]));
+    // The desktop menu icons, also embedded. Menus use 16 px icons at 100% scale.
+    for (name, body) in [(w!("\\menu_new.ico") as &[u16], MENU_NEW), (w!("\\menu_panel.ico"), MENU_PANEL), (w!("\\menu_settings.ico"), MENU_SETTINGS)] {
+        ok &= write_file(&wcat(&[dir, name]), &ico_of(&|s| menu_icon(body, s), &[16, 20, 24, 32]));
+    }
     for (name, s) in [(w!("\\Logo44.png") as &[u16], 44), (w!("\\Logo150.png"), 150), (w!("\\StoreLogo.png"), 50)] {
         ok &= write_file(&wcat(&[&assets, name]), &png(&logo(s), s));
     }
