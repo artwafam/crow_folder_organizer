@@ -543,6 +543,7 @@ extern "system" {
     pub fn DragQueryFileW(h: isize, i: u32, buf: PWSTR, n: u32) -> u32;
     pub fn ShellExecuteW(h: HWND, op: PCWSTR, file: PCWSTR, params: PCWSTR, dir: PCWSTR, show: i32) -> isize;
     pub fn SHCreateItemFromParsingName(p: PCWSTR, bc: *mut c_void, iid: *const GUID, out: *mut *mut c_void) -> HRESULT;
+    pub fn SHChangeNotify(event: i32, flags: u32, a: *const c_void, b: *const c_void);
 }
 
 #[link(name = "comdlg32", kind = "raw-dylib")]

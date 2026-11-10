@@ -144,6 +144,7 @@ pub fn import(dir: &[u16], src: &[u16]) -> Import {
             let dst = unique_path(dir, file_name(src));
             let (s, d) = (wz(src), wz(&dst));
             if MoveFileExW(s.as_ptr(), d.as_ptr(), MOVEFILE_COPY_ALLOWED) != 0 {
+                tell_shell(SHCNE_DELETE, &s);
                 return Import::Done(file_name(&dst).to_vec());
             }
             let pd = public_desktop();
@@ -209,8 +210,24 @@ pub unsafe fn create_link(lnk: &[u16], target: &[u16]) -> bool {
 
 /// Moves a shortcut out of the organizer back to the desktop.
 pub fn export_to_desktop(path: &[u16]) -> bool {
-    let dst = unique_path(&desktop_dir(), file_name(path));
-    unsafe { MoveFileExW(wz(path).as_ptr(), wz(&dst).as_ptr(), MOVEFILE_COPY_ALLOWED) != 0 }
+    let dst = wz(&unique_path(&desktop_dir(), file_name(path)));
+    let ok = unsafe { MoveFileExW(wz(path).as_ptr(), dst.as_ptr(), MOVEFILE_COPY_ALLOWED) != 0 };
+    if ok {
+        tell_shell(SHCNE_CREATE, &dst);
+    }
+    ok
+}
+
+const SHCNE_CREATE: i32 = 0x2;
+const SHCNE_DELETE: i32 = 0x4;
+
+/// Tells Explorer right away that a desktop file came or went. Moving a file
+/// into the hidden data folder otherwise leaves its icon on the desktop until
+/// Explorer refreshes on its own, which can take a minute or two.
+fn tell_shell(event: i32, path_z: &[u16]) {
+    const SHCNF_PATHW: u32 = 0x5;
+    const SHCNF_FLUSHNOWAIT: u32 = 0x3000;
+    unsafe { SHChangeNotify(event, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, path_z.as_ptr() as _, null_mut()) };
 }
 
 pub fn move_between(src: &[u16], dir: &[u16]) -> Option<WString> {
