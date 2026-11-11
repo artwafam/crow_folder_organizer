@@ -4,6 +4,7 @@ version.workspace = true
 edition = "2021"
 description = "Windows 11 context menu handler (IExplorerCommand) for Crow FO"
 authors.workspace = true
+license.workspace = true
 repository.workspace = true
 
 [lib]
