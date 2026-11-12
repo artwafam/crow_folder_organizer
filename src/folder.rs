@@ -123,6 +123,10 @@ pub struct FolderWin {
     count: Option<Mask>,
     name: Option<(Mask, Mask)>,
     glyph: Option<(i32, i32, Vec<u32>)>,
+    /// Header button masks (gear, then chevron) with the size and state they were drawn for,
+    /// so animation frames don't rasterize them again.
+    gear_m: Option<(i32, Vec<u8>)>,
+    chev_m: Option<(i32, bool, Vec<u8>)>,
     canvas: Option<Canvas>,
 }
 
@@ -177,6 +181,8 @@ impl FolderWin {
             count: None,
             name: None,
             glyph: None,
+            gear_m: None,
+            chev_m: None,
             canvas: None,
         };
         if f.cfg.collapsed {
@@ -228,6 +234,8 @@ impl FolderWin {
         self.name = None;
         self.lines = 0;
         self.glyph = None;
+        self.gear_m = None;
+        self.chev_m = None;
         self.cache.close();
     }
     /// Releases every pixel buffer. Called when idle.
@@ -916,7 +924,10 @@ impl FolderWin {
                 let base = if self.gear_hot { 0x2EFFFFFF } else { 0x16FFFFFF };
                 cv.rrect(gx, gy, gw, gh, gw / 2.0, base, base, (self.gear_a * 255.0) as u32, 1.0);
                 let isz = (16.0 * sc) as i32;
-                let m = crate::uikit::gear_mask(isz);
+                if !matches!(&self.gear_m, Some((s, _)) if *s == isz) {
+                    self.gear_m = Some((isz, crate::uikit::gear_mask(isz)));
+                }
+                let m = &self.gear_m.as_ref().unwrap().1;
                 let c = if self.gear_hot { g.title } else { mix(g.text, 0xFF808080, 0.35) };
                 cv.mask(&m, isz, isz, (gx + (gw - isz as f32) / 2.0) as i32, (gy + (gh - isz as f32) / 2.0) as i32, pm(c, (self.gear_a * 255.0) as u32));
             }
@@ -940,8 +951,12 @@ impl FolderWin {
                     cv.rrect(cx, cy, cw, ch, cw / 2.0, 0x2EFFFFFF, 0x2EFFFFFF, (self.gear_a * 255.0) as u32, 1.0);
                 }
                 let isz = (16.0 * sc) as i32;
-                let ic = if self.cfg.collapsed { crate::uikit::Ic::ChevronDown } else { crate::uikit::Ic::ChevronUp };
-                let m = crate::uikit::icon_mask_pub(ic, isz);
+                let down = self.cfg.collapsed;
+                if !matches!(&self.chev_m, Some((s, d, _)) if *s == isz && *d == down) {
+                    let ic = if down { crate::uikit::Ic::ChevronDown } else { crate::uikit::Ic::ChevronUp };
+                    self.chev_m = Some((isz, down, crate::uikit::icon_mask_pub(ic, isz)));
+                }
+                let m = &self.chev_m.as_ref().unwrap().2;
                 let c = if self.chev_hot { g.title } else { mix(g.text, 0xFF808080, 0.35) };
                 cv.mask(&m, isz, isz, (cx + (cw - isz as f32) / 2.0) as i32, (cy + (ch - isz as f32) / 2.0) as i32, pm(c, (self.gear_a * 255.0) as u32));
             }

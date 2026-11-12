@@ -115,7 +115,9 @@ pub fn png_wh(px: &[u32], w: i32, h: i32) -> Vec<u8> {
     out
 }
 
-/// Multi-size .ico of the logo with 32-bpp BMP entries.
+/// Multi-size .ico of the logo with 32-bpp BMP entries. The files kept in
+/// packaging/ are run through tools/ico-png.py afterwards, which stores the
+/// same pixels as compressed PNG so the embedded icons stay small.
 fn ico(sizes: &[i32]) -> Vec<u8> {
     ico_of(&logo, sizes)
 }

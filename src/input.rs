@@ -79,6 +79,12 @@ impl App {
                     Hit::Icon | Hit::Header | Hit::Title if !f.cfg.locked && f.edit.is_none() => {
                         f.drag = Drag::Move(start, POINT { x: f.cfg.x, y: f.cfg.y });
                         unsafe { KillTimer(hwnd, T_HOVER) };
+                        // Fold the panel away so only the icon follows the pointer
+                        // and the user can see exactly where it lands.
+                        if f.cfg.mode == Mode::Hover && f.target > 0.0 {
+                            self.collapse(i);
+                            self.render(i);
+                        }
                     }
                     Hit::Grip => {
                         let l = f.layout(&self.g);
@@ -329,7 +335,14 @@ impl App {
                 }
                 self.render(i);
             }
-            Drag::Move(..) | Drag::Resize(..) => self.save(),
+            Drag::Move(..) | Drag::Resize(..) => {
+                // A hover folder that finished folding during the move stayed raised, so send it down now
+                let f = &self.wins[i];
+                if f.cfg.mode == Mode::Hover && f.t == 0.0 && f.target == 0.0 {
+                    self.sink(f.hwnd);
+                }
+                self.save();
+            }
             Drag::Item(j) => self.drag_item_drop(i, j, sp),
             Drag::EditSelect | Drag::None => {}
         }

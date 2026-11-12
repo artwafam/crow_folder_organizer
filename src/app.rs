@@ -401,7 +401,10 @@ impl App {
                 f.scroll_target = 0.0;
                 f.place(&self.g);
                 self.render(i);
-                self.sink(self.wins[i].hwnd);
+                // keep it above other windows while it is still being moved
+                if !matches!(self.wins[i].drag, crate::folder::Drag::Move(..)) {
+                    self.sink(self.wins[i].hwnd);
+                }
             } else {
                 self.render(i);
             }
