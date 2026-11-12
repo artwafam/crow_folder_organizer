@@ -1,0 +1,7 @@
+# The Linux build rebuilds Rust's standard library with only what Crow uses
+# (see .cargo/config.toml), which needs a nightly compiler. It is pinned so
+# builds stay reproducible. The Windows build in ../ uses stable Rust.
+[toolchain]
+channel = "nightly-2026-11-11"
+components = ["rust-src"]
+profile = "minimal"

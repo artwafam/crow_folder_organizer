@@ -1,0 +1,14 @@
+# The repository's top-level .cargo/config.toml targets Windows. This one is
+# closer to the Linux crate, so it wins for builds started in linux/.
+[build]
+target = "x86_64-unknown-linux-gnu"
+# Shares the ignored /target folder at the repository root.
+target-dir = "../target"
+
+# Rebuild std for size: unused parts are dropped and a panic simply aborts,
+# like the Windows build's own runtime. About 400 KB less.
+[unstable]
+build-std = ["std", "panic_abort"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-Zunstable-options", "-Cpanic=immediate-abort", "-Cforce-unwind-tables=no", "-Clink-arg=-Wl,--no-eh-frame-hdr"]

@@ -1,0 +1,36 @@
+# Crow FO for Linux (X11). It reuses the app's code from ../src unchanged and
+# runs it on top of a small Win32 compatibility layer (src/ffi). The version,
+# authors and repository come from [workspace.package] in ../Cargo.toml (see
+# build.rs), so they still live in one place.
+[package]
+name = "crow-linux"
+version = "0.0.0"
+edition = "2021"
+publish = false
+build = "build.rs"
+
+[[bin]]
+name = "CrowFO"
+path = "src/main.rs"
+
+# Not part of the Windows workspace in ../Cargo.toml.
+[workspace]
+
+[dependencies]
+ab_glyph = "0.2"
+libc = "0.2"
+memmap2 = "0.9"
+png = "0.17"
+sha2 = "0.10"
+x11rb = { version = "0.13", features = ["shape", "randr", "xfixes", "cursor", "resource_manager"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+panic = "abort"
+opt-level = 1
