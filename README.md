@@ -67,7 +67,7 @@ Both files end up in `target\x86_64-pc-windows-msvc\release`.
 
 To change the version, edit `[workspace.package]` in `Cargo.toml`. It's the only place it lives.
 
-To publish a release, run `tools\release.ps1 1.2.0` and push the commit. Then click "Run workflow" in the Actions tab. GitHub builds and tests everything, creates the tag and puts the files up on the releases page. Pushing commits never publishes anything by itself.
+To publish a release, change `version` under `[workspace.package]` in `Cargo.toml`, then commit and push. Then click "Run workflow" in the Actions tab. GitHub builds and tests everything, creates the tag and puts the files up on the releases page. Pushing commits never publishes anything by itself.
 
 ## License
 

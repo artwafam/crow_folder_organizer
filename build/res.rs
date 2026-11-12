@@ -17,7 +17,9 @@ mod res {
         let mut v = [0u16; 4];
         let s = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
         for (i, n) in s.split(['.', '-', '+']).take(3).enumerate() {
-            v[i] = n.parse().unwrap_or(0);
+            v[i] = n.parse().unwrap_or_else(|_| {
+                panic!("Version {s} in Cargo.toml: each number has to be 65535 or less. That's a Windows limit.")
+            });
         }
         v[3] = std::env::var("CROW_BUILD").ok().and_then(|b| b.trim().parse::<u32>().ok()).unwrap_or(0).min(65535) as u16;
         v

@@ -57,7 +57,15 @@ if (-not $NoContextMenu) {
     $layout = Join-Path $out 'layout'
     Remove-Item $layout -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force (Join-Path $layout 'Assets') | Out-Null
-    Copy-Item (Join-Path $repo 'packaging\AppxManifest.xml') $layout
+    # The package version comes from Cargo.toml, like everything else. Packages
+    # take four plain numbers, so 1.2.0-beta.1 becomes 1.2.0.0.
+    $toml = Get-Content (Join-Path $repo 'Cargo.toml') -Raw
+    $m = [regex]::Match($toml, '(?ms)^\[workspace\.package\]\s*$.*?^version\s*=\s*"([^"]*)"')
+    if (-not $m.Success) { throw "Couldn't find the version under [workspace.package] in Cargo.toml." }
+    $pkgVersion = (($m.Groups[1].Value -split '[-+]')[0]) + '.0'
+    $manifest = Get-Content (Join-Path $repo 'packaging\AppxManifest.xml') -Raw
+    $manifest = [regex]::Replace($manifest, '(<Identity\b[^>]*\bVersion=")[^"]*(")', "`${1}$pkgVersion`${2}")
+    [IO.File]::WriteAllText((Join-Path $layout 'AppxManifest.xml'), $manifest, (New-Object Text.UTF8Encoding $false))
     Copy-Item (Join-Path $InstallDir 'Assets\*') (Join-Path $layout 'Assets')
     $msix = Join-Path $out 'crow.msix'
     & $makeappx.FullName pack /d $layout /p $msix /nv /o | Out-Null

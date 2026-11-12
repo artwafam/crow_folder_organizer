@@ -4,7 +4,7 @@ name: Release
 # requests don't start it. To publish, click "Run workflow" in the Actions
 # tab, on the main branch.
 #
-# The version comes from Cargo.toml (tools\release.ps1 changes it). The run
+# The version comes from Cargo.toml (edit it there and commit). The run
 # builds, tests, creates the tag v<version> on that commit and publishes the
 # release. If that version was already released, it stops before building.
 # Versions with a suffix, like 1.2.0-beta.1, come out as pre-releases.
@@ -72,7 +72,7 @@ jobs:
             exit 1
           }
           if (git ls-remote --tags origin "refs/tags/v$version") {
-            Write-Output "::error file=Cargo.toml::Version $version was already released. Change it with tools\release.ps1 first."
+            Write-Output "::error file=Cargo.toml::Version $version was already released. Change the version in Cargo.toml first."
             exit 1
           }
           $prerelease = $version.Contains('-').ToString().ToLower()

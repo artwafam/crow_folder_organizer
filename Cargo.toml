@@ -28,7 +28,7 @@ members = ["shellext", "setup"]
 # file properties and in the Windows list of installed apps. Change the
 # version only here. Release tags use the same number, like v1.2.0.
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Lucas 'Shoyguer' Melo"]
 repository = "https://github.com/shoyguer/crow_folder_organizer"
 license = "MIT"

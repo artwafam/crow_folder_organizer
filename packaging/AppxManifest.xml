@@ -4,6 +4,7 @@
   which Windows 11 requires before it shows an entry in the modern desktop
   context menu. The package only holds this manifest and the logos. CrowFO.exe
   and crow_menu.dll stay in the install folder given as -ExternalLocation.
+  Don't edit the Version below. tools\dev-install.ps1 fills it in from Cargo.toml.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
