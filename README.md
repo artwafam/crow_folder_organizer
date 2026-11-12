@@ -1,8 +1,10 @@
+<h1 align="center">Crow Folder Organizer</h1>
+
 <p align="center">
   <img src="docs/icon.png" alt="Crow FO icon" width="112">
 </p>
 
-# Crow FO
+<hr>
 
 Crow FO (Folder Organizer) is a tiny, highly customizable desktop folder organizer for Windows. Group your shortcuts into folders that open when you hover over them, or keep them in panels that stay open.
 
