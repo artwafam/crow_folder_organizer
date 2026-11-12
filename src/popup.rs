@@ -311,6 +311,10 @@ impl App {
             return;
         }
         self.close_popup(false);
+        // a fresh window doesn't repeat the result of an earlier update check
+        if self.update_state != crate::update::CHECKING {
+            self.update_state = 0;
+        }
         let p = self.make_prefs();
         self.show(Slot::Prefs, p);
     }

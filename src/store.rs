@@ -1,10 +1,10 @@
-//! Disk layout. Data that should follow the user lives inside the Desktop
-//! folder, so anything that backs up or syncs the Desktop (OneDrive, or
-//! restoring a new PC) carries Crow FO along. Moving a shortcut into a folder is
-//! then just a move inside the synced tree.
+//! Disk layout. Data that should follow the user lives inside Documents, so
+//! anything that backs up or syncs the user's folders (OneDrive, or restoring
+//! a new PC) carries Crow FO along. Moving a shortcut into a folder is then
+//! just a move inside the synced tree.
 //!
-//!   <Desktop>\.crowfo\crow.ini        settings and per-PC positions
-//!   <Desktop>\.crowfo\f<id>\*.lnk     the shortcuts of folder <id>
+//!   <Documents>\Crow FO\crow.ini       settings and per-PC positions
+//!   <Documents>\Crow FO\f<id>\*.lnk    the shortcuts of folder <id>
 //!
 //! Data that belongs to this machine and can be rebuilt stays local.
 //!
@@ -18,7 +18,7 @@ use core::ptr::null_mut;
 
 static mut ROOT: Option<WString> = None;
 
-/// <Desktop>\.crowfo (hidden), resolved once per run.
+/// <Documents>\Crow FO, resolved once per run.
 pub fn root() -> WString {
     unsafe {
         let slot = &mut *core::ptr::addr_of_mut!(ROOT);
@@ -27,16 +27,36 @@ pub fn root() -> WString {
         }
         // CROW_DATA overrides the location (portable installs, testing)
         let custom = env(w!("CROW_DATA"));
-        let r = if custom.is_empty() { wcat(&[&desktop_dir(), w!("\\.crowfo")]) } else { custom };
+        let r = if custom.is_empty() { default_root() } else { custom };
         mkdir(&r);
-        let p = wz(&r);
-        let a = GetFileAttributesW(p.as_ptr());
-        if a != INVALID_FILE_ATTRIBUTES && a & FILE_ATTRIBUTE_HIDDEN == 0 {
-            SetFileAttributesW(p.as_ptr(), a | FILE_ATTRIBUTE_HIDDEN);
-        }
         *slot = Some(r.clone());
         r
     }
+}
+
+/// Older versions kept the data in a hidden Desktop\.crowfo, which still shows
+/// on the desktop for anyone who displays hidden files. It moves to Documents
+/// once. If that can't happen yet (the folder is open somewhere, or Documents
+/// is on another drive) the old folder keeps working and the move is tried
+/// again on the next start.
+fn default_root() -> WString {
+    let new = wcat(&[&shell_folder(w!("Personal"), w!("\\Documents")), w!("\\Crow FO")]);
+    let old = wcat(&[&desktop_dir(), w!("\\.crowfo")]);
+    if !is_dir(&new) && is_dir(&old) {
+        let n = wz(&new);
+        unsafe {
+            if MoveFileExW(wz(&old).as_ptr(), n.as_ptr(), 0) == 0 {
+                return old;
+            }
+            let a = GetFileAttributesW(n.as_ptr());
+            if a != INVALID_FILE_ATTRIBUTES && a & FILE_ATTRIBUTE_HIDDEN != 0 {
+                // keep only what SetFileAttributesW accepts, minus hidden
+                let keep = a & 0x3127 & !FILE_ATTRIBUTE_HIDDEN;
+                SetFileAttributesW(n.as_ptr(), if keep == 0 { 0x80 } else { keep });
+            }
+        }
+    }
+    new
 }
 
 /// %LOCALAPPDATA%\Crow FO\cache, local to this machine and never synced.
@@ -70,6 +90,12 @@ pub fn folder_dir(id: u32) -> WString {
 }
 
 pub fn desktop_dir() -> WString {
+    shell_folder(w!("Desktop"), w!("\\Desktop"))
+}
+
+/// A user folder such as Desktop or Personal (Documents), following any
+/// redirection (OneDrive, another drive). Falls back to %USERPROFILE% + `fallback`.
+fn shell_folder(value: &[u16], fallback: &[u16]) -> WString {
     unsafe {
         let mut k: HKEY = 0;
         if RegOpenKeyExW(HKEY_CURRENT_USER, w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders").as_ptr(),
@@ -78,7 +104,7 @@ pub fn desktop_dir() -> WString {
             let mut buf = [0u16; 520];
             let mut len = (buf.len() * 2) as u32;
             let mut ty = 0u32;
-            let r = RegQueryValueExW(k, w!("Desktop").as_ptr(), null_mut(), &mut ty, buf.as_mut_ptr() as *mut u8, &mut len);
+            let r = RegQueryValueExW(k, value.as_ptr(), null_mut(), &mut ty, buf.as_mut_ptr() as *mut u8, &mut len);
             RegCloseKey(k);
             if r == 0 {
                 let v = expand_env(&buf);
@@ -88,7 +114,7 @@ pub fn desktop_dir() -> WString {
             }
         }
     }
-    wcat(&[&env(w!("USERPROFILE")), w!("\\Desktop")])
+    wcat(&[&env(w!("USERPROFILE")), fallback])
 }
 
 /// Builds `dir\name`, adding " (2)", " (3)" and so on before the extension when the name is taken.
@@ -131,44 +157,70 @@ fn public_desktop() -> WString {
     wcat(&[&p, w!("\\Desktop")])
 }
 
-/// Brings `src` into folder `dir` and returns the new file name. Shortcuts are
-/// moved. Anything else gets a new shortcut pointing at it, so the user's real
-/// files never move.
+/// Whether dropping `p` on a folder moves it in. Shortcuts always move, and so
+/// does anything that sits on the desktop, like dropping it on a desktop
+/// folder would. Files from anywhere else stay where they are and the folder
+/// gets a shortcut to them.
+pub fn moves_in(p: &[u16]) -> bool {
+    let p = trim_nul(p);
+    if is_shortcut(p) {
+        return true;
+    }
+    let parent = parent_dir(p);
+    let pd = public_desktop();
+    weq_ic(parent, &desktop_dir()) || (!pd.is_empty() && weq_ic(parent, &pd))
+}
+
+/// Brings `src` into folder `dir` and returns the new file name. See moves_in
+/// for what is moved and what gets a shortcut instead.
 pub fn import(dir: &[u16], src: &[u16]) -> Import {
     let src = trim_nul(src);
     if weq_ic(parent_dir(src), dir) {
         return Import::Done(file_name(src).to_vec());
     }
     unsafe {
-        if is_shortcut(src) {
+        if moves_in(src) {
+            let folder = is_dir(src);
             let dst = unique_path(dir, file_name(src));
             let (s, d) = (wz(src), wz(&dst));
             if MoveFileExW(s.as_ptr(), d.as_ptr(), MOVEFILE_COPY_ALLOWED) != 0 {
-                tell_shell(SHCNE_DELETE, &s);
+                tell_shell(if folder { SHCNE_RMDIR } else { SHCNE_DELETE }, &s);
                 return Import::Done(file_name(&dst).to_vec());
             }
             let pd = public_desktop();
             if GetLastError() == ERROR_ACCESS_DENIED && !pd.is_empty() && weq_ic(parent_dir(src), &pd) {
                 return Import::NeedsAdmin;
             }
-            return match copy_in(dir, src) {
+            // It couldn't move (open in an app, or on another drive). Leave it
+            // where it is and keep it reachable from the folder.
+            return match fallback_in(dir, src) {
                 Some(n) => Import::Done(n),
                 None => Import::Failed,
             };
         }
-        let name = if is_dir(src) { file_name(src).to_vec() } else { stem(src).to_vec() };
-        let name = if name.is_empty() { src.iter().take(1).copied().collect() } else { name };
-        let dst = unique_path(dir, &wcat(&[&name, w!(".lnk")]));
-        if create_link(&dst, src) {
-            Import::Done(file_name(&dst).to_vec())
-        } else {
-            Import::Failed
+        match link_in(dir, src) {
+            Some(n) => Import::Done(n),
+            None => Import::Failed,
         }
     }
 }
 
+/// For an item that couldn't be moved in: a shortcut is copied, anything else
+/// gets a shortcut to it. The original stays where it is either way.
+pub fn fallback_in(dir: &[u16], src: &[u16]) -> Option<WString> {
+    if is_shortcut(src) { copy_in(dir, src) } else { link_in(dir, src) }
+}
+
+/// Adds a new shortcut to `src` in folder `dir`.
+fn link_in(dir: &[u16], src: &[u16]) -> Option<WString> {
+    let name = if is_dir(src) { file_name(src).to_vec() } else { stem(src).to_vec() };
+    let name = if name.is_empty() { src.iter().take(1).copied().collect() } else { name };
+    let dst = unique_path(dir, &wcat(&[&name, w!(".lnk")]));
+    unsafe { create_link(&dst, src) }.then(|| file_name(&dst).to_vec())
+}
+
 /// Copies a shortcut in, leaving the original where it is.
-pub fn copy_in(dir: &[u16], src: &[u16]) -> Option<WString> {
+fn copy_in(dir: &[u16], src: &[u16]) -> Option<WString> {
     let dst = unique_path(dir, file_name(src));
     unsafe {
         if CopyFileW(wz(src).as_ptr(), wz(&dst).as_ptr(), 1) != 0 {
@@ -176,6 +228,35 @@ pub fn copy_in(dir: &[u16], src: &[u16]) -> Option<WString> {
         } else {
             None
         }
+    }
+}
+
+/// The name a folder shows for item `name` of `dir`, like Explorer would:
+/// shortcuts without their extension, folders in full, and other files with
+/// or without the extension depending on Explorer's "File name extensions".
+pub fn label<'a>(dir: &[u16], name: &'a [u16]) -> &'a [u16] {
+    let name = trim_nul(name);
+    if is_shortcut(name) {
+        return stem(name);
+    }
+    if !hide_extensions() || is_dir(&wcat(&[dir, w!("\\"), name])) {
+        return name;
+    }
+    stem(name)
+}
+
+fn hide_extensions() -> bool {
+    unsafe {
+        let mut k: HKEY = 0;
+        if RegOpenKeyExW(HKEY_CURRENT_USER, w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced").as_ptr(), 0, KEY_READ, &mut k) != 0 {
+            return true;
+        }
+        let mut v = 1u32;
+        let mut len = 4u32;
+        let mut ty = 0u32;
+        RegQueryValueExW(k, w!("HideFileExt").as_ptr(), null_mut(), &mut ty, &mut v as *mut u32 as *mut u8, &mut len);
+        RegCloseKey(k);
+        v != 0
     }
 }
 
@@ -213,13 +294,15 @@ pub fn export_to_desktop(path: &[u16]) -> bool {
     let dst = wz(&unique_path(&desktop_dir(), file_name(path)));
     let ok = unsafe { MoveFileExW(wz(path).as_ptr(), dst.as_ptr(), MOVEFILE_COPY_ALLOWED) != 0 };
     if ok {
-        tell_shell(SHCNE_CREATE, &dst);
+        tell_shell(if is_dir(&dst) { SHCNE_MKDIR } else { SHCNE_CREATE }, &dst);
     }
     ok
 }
 
 const SHCNE_CREATE: i32 = 0x2;
 const SHCNE_DELETE: i32 = 0x4;
+const SHCNE_MKDIR: i32 = 0x8;
+const SHCNE_RMDIR: i32 = 0x10;
 
 /// Tells Explorer right away that a desktop file came or went. Moving a file
 /// into the hidden data folder otherwise leaves its icon on the desktop until
@@ -241,9 +324,11 @@ pub fn move_between(src: &[u16], dir: &[u16]) -> Option<WString> {
     }
 }
 
-pub fn rename(dir: &[u16], old: &[u16], new_stem: &[u16]) -> Option<WString> {
-    let ext = &old[stem(old).len()..];
-    let clean: WString = new_stem.iter().copied().filter(|&c| !b"\\/:*?\"<>|".contains(&(c as u8)) || c > 127).collect();
+/// Renames item `old` of `dir` to what the user typed over its label. When the
+/// label hides the extension, the extension is kept.
+pub fn rename(dir: &[u16], old: &[u16], new_label: &[u16]) -> Option<WString> {
+    let ext = &old[label(dir, old).len()..];
+    let clean: WString = new_label.iter().copied().filter(|&c| !b"\\/:*?\"<>|".contains(&(c as u8)) || c > 127).collect();
     if clean.is_empty() {
         return None;
     }

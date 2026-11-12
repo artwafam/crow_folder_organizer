@@ -3,6 +3,10 @@
 //! latest release and quits right away when there is nothing new. The main app
 //! never touches the network, so its memory stays the same.
 //!
+//! The "Check for updates" button in the settings runs the same process with
+//! `--now`. It tries once and reports back to the app (WM_CROW_UPDATE) so the
+//! settings can say whether this is the latest version.
+//!
 //! When a newer version exists, a small window offers it. "Update" downloads
 //! CrowFOSetup.exe from the release, checks it against the release's
 //! SHA256SUMS.txt and runs it with /S. The installer closes Crow FO, replaces
@@ -47,6 +51,29 @@ pub fn set_enabled(on: bool) {
 /// it is the installed one.
 pub fn is_installed() -> bool {
     weq_ic(parent_dir(&store::own_exe()), &crate::installer::install_dir())
+}
+
+/// What the settings show about the "Check for updates" button. The check
+/// process sends the last three back as WM_CROW_UPDATE.
+pub const CHECKING: u8 = 1;
+pub const LATEST: u8 = 2;
+pub const FAILED: u8 = 3;
+pub const FOUND: u8 = 4;
+
+/// Starts a check right away, for the button in the settings.
+pub fn check_now() -> bool {
+    let exe = wz(&store::own_exe());
+    unsafe { ShellExecuteW(0, null(), exe.as_ptr(), w!("--check-update --now").as_ptr(), null(), SW_SHOWNORMAL) > 32 }
+}
+
+/// Tells the running app how a check from the button ended.
+pub fn report(state: u8) {
+    unsafe {
+        let h = FindWindowW(w!("CrowFOHost").as_ptr(), null());
+        if h != 0 {
+            PostMessageW(h, crate::app::WM_CROW_UPDATE, state as usize, 0);
+        }
+    }
 }
 
 /// Called once each time the app starts.
@@ -105,25 +132,36 @@ fn json_str(text: &str, key: &str) -> Option<String> {
     Some(rest[..rest.find('"')?].into())
 }
 
-/// Asks GitHub for the latest release and returns its tag when it is newer
-/// than this build. After sign-in the network may still be coming up, so a
-/// failed connection is tried again a few times. Any real answer ends it.
-pub fn check() -> Option<String> {
+pub enum Check {
+    /// A newer release, by its tag.
+    Newer(String),
+    Latest,
+    Failed,
+}
+
+/// Asks GitHub for the latest release. Right after sign-in the network may
+/// still be coming up, so with `patient` a failed connection is tried again a
+/// few times. Any real answer ends it.
+pub fn check(patient: bool) -> Check {
     let url = cat(&["https://api.github.com/repos/", repo(), "/releases/latest"]);
-    for wait in [0u32, 15, 30, 60, 120] {
+    let waits: &[u32] = if patient { &[0, 15, 30, 60, 120] } else { &[0] };
+    for &wait in waits {
         unsafe { Sleep(wait * 1000) };
         match crate::net::get(&url, "application/vnd.github+json", 1 << 20) {
             Ok(body) => {
-                let tag = json_str(core::str::from_utf8(&body).ok()?, "tag_name")?;
+                let Some(tag) = core::str::from_utf8(&body).ok().and_then(|t| json_str(t, "tag_name")) else { return Check::Failed };
                 // the tag goes into a URL, so only plain version characters
                 let plain = tag.len() < 40 && tag.bytes().all(|c| c.is_ascii_alphanumeric() || b".-+".contains(&c));
-                return (plain && is_newer(&tag, env!("CARGO_PKG_VERSION"))).then_some(tag);
+                if !plain {
+                    return Check::Failed;
+                }
+                return if is_newer(&tag, env!("CARGO_PKG_VERSION")) { Check::Newer(tag) } else { Check::Latest };
             }
-            Err(crate::net::Error::Refused) => return None,
+            Err(crate::net::Error::Refused) => return Check::Failed,
             Err(crate::net::Error::Network) => {}
         }
     }
-    None
+    Check::Failed
 }
 
 fn updates_dir() -> WString {

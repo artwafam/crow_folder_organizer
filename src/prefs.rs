@@ -329,8 +329,31 @@ fn about(app: &mut App, ui: &mut Ui) {
     let site = ui.button(1890, tr("prefs.project_page"), Some(Ic::GitHub), 0, x0, half);
     let ini = ui.button(1900, tr("prefs.edit_ini"), Some(Ic::File), 0, x1, half);
     ui.y += ui.s(42.0);
-    let quit = ui.button(1910, tr("prefs.quit"), Some(Ic::Power), 2, x0, half);
+    use crate::update::{CHECKING, FAILED, FOUND, LATEST};
+    let checking = app.update_state == CHECKING;
+    let check = ui.button(1920, tr(if checking { "prefs.checking" } else { "prefs.check_now" }), Some(Ic::Refresh), 0, x0, half);
+    let quit = ui.button(1910, tr("prefs.quit"), Some(Ic::Power), 2, x1, half);
     ui.y += ui.s(34.0);
+    let status = match app.update_state {
+        LATEST => Some("prefs.up_to_date"),
+        FAILED => Some("prefs.check_failed"),
+        FOUND => Some("prefs.update_found"),
+        _ => None,
+    };
+    if let Some(k) = status {
+        ui.space(8.0);
+        ui.paragraph(tr(k), 13.0, mc);
+    }
+    if check && !checking {
+        // Updates come through the installer. A copy that isn't the installed
+        // one opens the releases page instead.
+        if crate::update::is_installed() && crate::update::check_now() {
+            app.update_state = CHECKING;
+        } else {
+            let url = wz(&to_w(&crate::update::releases_page()));
+            unsafe { ShellExecuteW(0, core::ptr::null(), url.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL) };
+        }
+    }
     if site {
         let url = wz(&to_w(env!("CARGO_PKG_REPOSITORY")));
         unsafe { ShellExecuteW(0, core::ptr::null(), url.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL) };

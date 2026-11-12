@@ -190,8 +190,11 @@ fn do_uninstall(restore: bool) {
     store::reg_delete_tree(UNINSTALL_KEY);
     store::reg_delete_tree(crate::update::KEY);
     if restore {
-        // every shortcut goes back to the desktop, then Crow's data is removed
+        // Everything in the folders goes back to the desktop, then Crow's own
+        // data is removed. Only empty folders are deleted, so anything that
+        // couldn't be moved (a file open in an app) stays safe where it is.
         let root = store::root();
+        let mut all_out = true;
         let pat = wz(&wcat(&[&root, w!("\\f*")]));
         unsafe {
             let mut fd: WIN32_FIND_DATAW = core::mem::zeroed();
@@ -203,6 +206,7 @@ fn do_uninstall(restore: bool) {
                         for f in list_files(&d) {
                             store::export_to_desktop(&wcat(&[&d, w!("\\"), &f]));
                         }
+                        all_out &= RemoveDirectoryW(wz(&d).as_ptr()) != 0;
                     }
                     if FindNextFileW(h, &mut fd) == 0 {
                         break;
@@ -210,8 +214,11 @@ fn do_uninstall(restore: bool) {
                 }
                 FindClose(h);
             }
+            if all_out {
+                DeleteFileW(wz(&store::ini_path()).as_ptr());
+                RemoveDirectoryW(wz(&root).as_ptr());
+            }
         }
-        remove_tree(&root);
     }
     remove_tree(&wcat(&[&env(w!("LOCALAPPDATA")), w!("\\Crow FO")]));
     // A running program can't delete its own file, but it can move it. It goes

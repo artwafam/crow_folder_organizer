@@ -29,11 +29,22 @@ pub extern "system" fn entry() -> ! {
         }
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         if cl.contains("--check-update") {
-            // started by the app at launch, see update.rs. One at a time.
-            CreateMutexW(core::ptr::null(), 1, w!("Local\\CrowFOUpdate").as_ptr());
+            // Started by the app at launch, or with --now by the button in the
+            // settings (see update.rs). One of each at a time.
+            let now = cl.contains("--now");
+            let name: &[u16] = if now { w!("Local\\CrowFOUpdateNow") } else { w!("Local\\CrowFOUpdate") };
+            CreateMutexW(core::ptr::null(), 1, name.as_ptr());
             if GetLastError() != ERROR_ALREADY_EXISTS {
                 update::cleanup();
-                if let Some(tag) = update::check() {
+                let r = update::check(!now);
+                if now {
+                    update::report(match r {
+                        update::Check::Newer(_) => update::FOUND,
+                        update::Check::Latest => update::LATEST,
+                        update::Check::Failed => update::FAILED,
+                    });
+                }
+                if let update::Check::Newer(tag) = r {
                     OleInitialize(core::ptr::null_mut());
                     installer::offer_update(tag);
                 }

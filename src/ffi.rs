@@ -437,6 +437,7 @@ extern "system" {
     pub fn PostQuitMessage(code: i32);
     pub fn PostMessageW(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> BOOL;
     pub fn SendMessageW(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT;
+    pub fn SendMessageTimeoutW(h: HWND, m: u32, w: WPARAM, l: LPARAM, f: u32, ms: u32, r: *mut usize) -> LRESULT;
     pub fn MsgWaitForMultipleObjectsEx(n: u32, h: *const HANDLE, ms: u32, mask: u32, f: u32) -> u32;
     pub fn ShowWindow(h: HWND, cmd: i32) -> BOOL;
     pub fn SetWindowPos(h: HWND, after: HWND, x: i32, y: i32, cx: i32, cy: i32, f: u32) -> BOOL;

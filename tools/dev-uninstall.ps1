@@ -1,7 +1,7 @@
 <#
   Removes a developer install of Crow FO: the context menu package, the startup
   entry, the classic menu entry and the install folder. Your folders and
-  shortcuts in Desktop\.crowfo are kept.
+  shortcuts in Documents\Crow FO are kept.
 #>
 param([string]$InstallDir = "$env:LOCALAPPDATA\Programs\Crow FO")
 Get-Process CrowFO -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -15,4 +15,4 @@ Remove-Item "$env:LOCALAPPDATA\Crow FO" -Recurse -Force -ErrorAction SilentlyCon
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $pub = [Environment]::GetFolderPath('CommonDesktopDirectory')
 Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile', '-Command', "icacls '$pub' /remove:g '*$sid' | Out-Null"
-Write-Host 'Crow FO was removed. Your folders are still in Desktop\.crowfo.'
+Write-Host 'Crow FO was removed. Your folders are still in Documents\Crow FO.'

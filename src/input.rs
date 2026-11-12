@@ -77,13 +77,20 @@ impl App {
                 let f = &mut self.wins[i];
                 match hit {
                     Hit::Icon | Hit::Header | Hit::Title if !f.cfg.locked && f.edit.is_none() => {
-                        f.drag = Drag::Move(start, POINT { x: f.cfg.x, y: f.cfg.y });
                         unsafe { KillTimer(hwnd, T_HOVER) };
-                        // Fold the panel away so only the icon follows the pointer
-                        // and the user can see exactly where it lands.
-                        if f.cfg.mode == Mode::Hover && f.target > 0.0 {
-                            self.collapse(i);
-                            self.render(i);
+                        if f.cfg.mode == Mode::Hover {
+                            // Like a desktop icon: the folder stays put (closed, if it was
+                            // open) and a see-through copy follows the pointer.
+                            f.drag = Drag::Place;
+                            if f.target > 0.0 {
+                                self.collapse(i);
+                                self.render(i);
+                            }
+                            self.make_folder_ghost(i, start);
+                            self.move_ghost(sp);
+                        } else {
+                            // panels move live, like a window dragged by its title bar
+                            f.drag = Drag::Move(start, POINT { x: f.cfg.x, y: f.cfg.y });
                         }
                     }
                     Hit::Grip => {
@@ -135,6 +142,7 @@ impl App {
                 }
             }
             Drag::Item(_) => self.drag_item_move(sp),
+            Drag::Place => self.move_ghost(sp),
             Drag::EditSelect => {
                 let f = &mut self.wins[i];
                 if let Some((t, _)) = f.edit {
@@ -335,13 +343,18 @@ impl App {
                 }
                 self.render(i);
             }
-            Drag::Move(..) | Drag::Resize(..) => {
-                // A hover folder that finished folding during the move stayed raised, so send it down now
-                let f = &self.wins[i];
-                if f.cfg.mode == Mode::Hover && f.t == 0.0 && f.target == 0.0 {
-                    self.sink(f.hwnd);
+            Drag::Move(..) | Drag::Resize(..) => self.save(),
+            Drag::Place => {
+                let at = POINT { x: sp.x + self.ghost_off.x, y: sp.y + self.ghost_off.y };
+                self.destroy_ghost();
+                self.drop_folder(i, at);
+                // The pointer now rests on the folder it just dropped. That is not
+                // a visit meant to open it, so only a fresh one will.
+                let f = &mut self.wins[i];
+                if in_rect(&f.icon_box, cursor()) {
+                    f.mouse_in = true;
+                    track_leave(f.hwnd);
                 }
-                self.save();
             }
             Drag::Item(j) => self.drag_item_drop(i, j, sp),
             Drag::EditSelect | Drag::None => {}
@@ -409,6 +422,10 @@ impl App {
                 self.wins[i].drag = Drag::None;
                 self.save();
             }
+            Drag::Place => {
+                self.wins[i].drag = Drag::None;
+                self.destroy_ghost();
+            }
             Drag::EditSelect => self.wins[i].drag = Drag::None,
             _ => {}
         }
@@ -443,6 +460,7 @@ impl App {
         }
         let id = match f.drag {
             Drag::Move(..) => IDC_SIZEALL,
+            Drag::Place => IDC_ARROW,
             Drag::Resize(..) => IDC_SIZENWSE,
             Drag::EditSelect => IDC_IBEAM,
             _ => match f.hit(&self.g, p) {
@@ -473,6 +491,8 @@ impl App {
         let size = (s as f32 * 1.12) as i32;
         let dim = size + pad * 2;
         let Some(mut cv) = Canvas::dib(dim, dim) else { return };
+        self.ghost_off = POINT { x: -dim / 2, y: -dim / 2 };
+        self.ghost_alpha = 255;
         cv.clear(0);
         cv.rrect(pad as f32, pad as f32 + 4.0 * sc, size as f32, size as f32, size as f32 * 0.25, 0x60000000, 0x60000000, 255, 10.0 * sc);
         cv.blit(&px, s, s, pad as f32, pad as f32, size as f32, size as f32, 235);
@@ -484,6 +504,60 @@ impl App {
             SetTimer(self.msg, T_GHOST, 100, 0);
         }
         self.ghost_cv = Some(cv);
+    }
+
+    /// The see-through copy of a folder icon that follows the pointer while it
+    /// is moved. It keeps the spot where the icon was grabbed under the
+    /// pointer, or centers on it when the drag started on the open panel.
+    fn make_folder_ghost(&mut self, i: usize, start: POINT) {
+        self.destroy_ghost();
+        let Some(cv) = self.wins[i].ghost(&self.g, &mut self.fonts) else { return };
+        let b = self.wins[i].icon_box;
+        self.ghost_off = if in_rect(&b, start) {
+            POINT { x: b.left - start.x, y: b.top - start.y }
+        } else {
+            POINT { x: -cv.w / 2, y: -cv.h / 2 }
+        };
+        self.ghost_alpha = 150;
+        unsafe {
+            let inst = GetModuleHandleW(core::ptr::null());
+            self.ghost = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
+                w!("CrowFolder").as_ptr(), core::ptr::null(), WS_POPUP, 0, 0, cv.w, cv.h, 0, 0, inst, core::ptr::null());
+            SetTimer(self.msg, T_GHOST, 100, 0);
+        }
+        self.ghost_cv = Some(cv);
+    }
+
+    /// Puts a moved folder icon where it was dropped. When Windows aligns the
+    /// desktop icons to a grid, the folder takes the nearest cell of that same
+    /// grid so it lines up with the icons around it. Holding Shift places it freely.
+    fn drop_folder(&mut self, i: usize, at: POINT) {
+        let (x, y) = self.snap_icon(i, at);
+        let f = &mut self.wins[i];
+        if (x, y) == (f.cfg.x, f.cfg.y) {
+            return;
+        }
+        f.cfg.x = x;
+        f.cfg.y = y;
+        f.place(&self.g);
+        self.render(i);
+        self.save();
+    }
+
+    fn snap_icon(&self, i: usize, at: POINT) -> (i32, i32) {
+        if unsafe { GetKeyState(VK_SHIFT) } < 0 {
+            return (at.x, at.y);
+        }
+        let Some((cw, ch)) = crate::desk::icon_grid() else { return (self.snap(at.x), self.snap(at.y)) };
+        let b = &self.wins[i].icon_box;
+        let (bw, bh) = (b.right - b.left, b.bottom - b.top);
+        let mut mi = MONITORINFO { cbSize: core::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        unsafe { GetMonitorInfoW(MonitorFromPoint(POINT { x: at.x + bw / 2, y: at.y + bh / 2 }, MONITOR_DEFAULTTONEAREST), &mut mi) };
+        let wa = mi.rcWork;
+        // nearest cell by the icon's center across, and by its top edge down
+        let col = round((at.x + bw / 2 - wa.left - cw / 2) as f32 / cw as f32).max(0.0) as i32;
+        let row = round((at.y - wa.top) as f32 / ch as f32).max(0.0) as i32;
+        (wa.left + col * cw + cw / 2 - bw / 2, wa.top + row * ch)
     }
 
     fn destroy_ghost(&mut self) {
@@ -503,11 +577,14 @@ impl App {
             unsafe { KillTimer(self.msg, T_GHOST) };
             return;
         }
-        if unsafe { GetAsyncKeyState(VK_LBUTTON) } as u16 & 0x8000 != 0 {
+        // Esc cancels a drag, as it does on the desktop
+        let held = unsafe { GetAsyncKeyState(VK_LBUTTON) } as u16 & 0x8000 != 0;
+        let esc = unsafe { GetAsyncKeyState(VK_ESCAPE as i32) } as u16 & 0x8000 != 0;
+        if held && !esc {
             return;
         }
         for k in 0..self.wins.len() {
-            if let Drag::Item(_) = self.wins[k].drag {
+            if matches!(self.wins[k].drag, Drag::Item(_) | Drag::Place) {
                 self.wins[k].drag = Drag::None;
                 unsafe { ReleaseCapture() };
                 self.render(k);
@@ -519,10 +596,10 @@ impl App {
     fn move_ghost(&mut self, sp: POINT) {
         let Some(cv) = &self.ghost_cv else { return };
         unsafe {
-            let pos = POINT { x: sp.x - cv.w / 2, y: sp.y - cv.h / 2 };
+            let pos = POINT { x: sp.x + self.ghost_off.x, y: sp.y + self.ghost_off.y };
             let size = SIZE { cx: cv.w, cy: cv.h };
             let src = POINT::default();
-            let bf = BLENDFUNCTION { BlendOp: 0, BlendFlags: 0, SourceConstantAlpha: 255, AlphaFormat: AC_SRC_ALPHA };
+            let bf = BLENDFUNCTION { BlendOp: 0, BlendFlags: 0, SourceConstantAlpha: self.ghost_alpha, AlphaFormat: AC_SRC_ALPHA };
             UpdateLayeredWindow(self.ghost, 0, &pos, &size, cv.dc, &src, 0, &bf, ULW_ALPHA);
             ShowWindow(self.ghost, SW_SHOWNOACTIVATE);
         }
@@ -640,7 +717,7 @@ impl App {
         if self.mark_target(pt, None).is_none() {
             return DROPEFFECT_NONE;
         }
-        let want = if self.ole_files.iter().all(|f| store::is_shortcut(f)) { DROPEFFECT_MOVE } else { DROPEFFECT_LINK };
+        let want = if self.ole_files.iter().all(|f| store::moves_in(f)) { DROPEFFECT_MOVE } else { DROPEFFECT_LINK };
         for e in [want, DROPEFFECT_MOVE, DROPEFFECT_COPY, DROPEFFECT_LINK] {
             if allowed & e != 0 {
                 return e;
@@ -687,9 +764,9 @@ impl App {
             }
         }
         // Without permission on the shared desktop (the installer grants it),
-        // fall back to a copy so nothing is lost.
+        // leave the item there and keep it reachable from the folder.
         for f in &blocked {
-            if let Some(name) = store::copy_in(&dir, f) {
+            if let Some(name) = store::fallback_in(&dir, f) {
                 names.push(name);
             }
         }

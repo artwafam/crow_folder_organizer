@@ -137,6 +137,7 @@ pub enum Ic {
     Clock,
     Info,
     GitHub,
+    Refresh,
 }
 
 /// Icon coverage masks, drawn from small vector paths on a 24 unit grid.
@@ -240,6 +241,16 @@ fn icon_mask(ic: Ic, s: i32) -> Vec<u8> {
             ph.move_to(p(4.0, 4.0));
             ph.line_to(p(4.0, 9.0));
             ph.line_to(p(9.0, 9.0));
+        }
+        Ic::Refresh => {
+            // a circle that ends in an arrow, turning clockwise
+            ph.move_to(p(20.0, 12.0));
+            ph.arc_to(8.0, 8.0, 0.0, true, true, p(12.0, 4.0));
+            ph.arc_to(8.0, 8.0, 0.0, false, true, p(17.66, 6.34));
+            ph.line_to(p(20.0, 8.5));
+            ph.move_to(p(20.0, 3.5));
+            ph.line_to(p(20.0, 8.5));
+            ph.line_to(p(15.0, 8.5));
         }
         Ic::Out => {
             ph.move_to(p(12.0, 4.0));

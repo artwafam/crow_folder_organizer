@@ -33,6 +33,32 @@ pub fn host() -> HWND {
     }
 }
 
+/// The desktop icon grid as (cell width, cell height) while Windows has
+/// "Align icons to grid" on, or None. Two plain queries to the desktop list
+/// view, with a short timeout in case Explorer is busy.
+pub fn icon_grid() -> Option<(i32, i32)> {
+    const LVM_GETITEMSPACING: u32 = 0x1033;
+    const LVM_GETEXTENDEDLISTVIEWSTYLE: u32 = 0x1037;
+    const LVS_EX_SNAPTOGRID: usize = 0x0008_0000;
+    const SMTO_ABORTIFHUNG: u32 = 2;
+    unsafe {
+        let view = FindWindowExW(host(), 0, w!("SHELLDLL_DefView").as_ptr(), core::ptr::null());
+        let lv = if view == 0 { 0 } else { FindWindowExW(view, 0, w!("SysListView32").as_ptr(), core::ptr::null()) };
+        if lv == 0 {
+            return None;
+        }
+        let mut r = 0usize;
+        if SendMessageTimeoutW(lv, LVM_GETEXTENDEDLISTVIEWSTYLE, 0, 0, SMTO_ABORTIFHUNG, 200, &mut r) == 0 || r & LVS_EX_SNAPTOGRID == 0 {
+            return None;
+        }
+        if SendMessageTimeoutW(lv, LVM_GETITEMSPACING, 0, 0, SMTO_ABORTIFHUNG, 200, &mut r) == 0 {
+            return None;
+        }
+        let (cw, ch) = ((r & 0xFFFF) as i32, ((r >> 16) & 0xFFFF) as i32);
+        (cw > 0 && ch > 0).then_some((cw, ch))
+    }
+}
+
 pub fn is_desktop(h: HWND) -> bool {
     h != 0 && (class_is(h, w!("WorkerW")) || class_is(h, w!("Progman")))
 }

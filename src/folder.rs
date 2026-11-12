@@ -40,6 +40,9 @@ pub enum Drag {
     None,
     Pending(Hit, POINT),
     Move(POINT, POINT), // cursor start, cfg pos start
+    /// Moving a folder icon the way the desktop moves its icons: it stays put
+    /// while a see-through copy follows the pointer, then it jumps to the drop spot.
+    Place,
     Resize(POINT, i32, i32),
     Item(usize),
     /// Selecting text with the mouse inside a name being edited.
@@ -428,6 +431,28 @@ impl FolderWin {
         }
     }
 
+    /// The folder as it looks closed (glyph and name), for the copy that
+    /// follows the pointer while it is being moved.
+    pub fn ghost(&mut self, g: &Global, fonts: &mut crate::Fonts) -> Option<Canvas> {
+        let l = self.layout(g);
+        self.ensure_icons(&l);
+        self.ensure_text(g, &l, fonts);
+        let mut cv = Canvas::dib(l.box_w, l.box_h)?;
+        cv.clear(0);
+        let sc = self.sc;
+        let gs = l.gs as f32;
+        self.draw_glyph(&mut cv, (l.box_w as f32 - gs) / 2.0, 6.0 * sc, gs, 256, &l);
+        if let Some((m, s)) = &self.name {
+            let ty = (10.0 * sc + gs) as i32;
+            let tx = (l.box_w - m.w) / 2;
+            if g.label_shadow {
+                cv.mask(&s.a, s.w, s.h, tx - 2, ty - 1, 0xD0000000);
+            }
+            cv.mask(&m.a, m.w, m.h, tx, ty, pm(g.text, 255));
+        }
+        Some(cv)
+    }
+
     /// Eased open amount used for geometry.
     pub fn e(&self) -> f32 {
         if self.cfg.mode == Mode::Panel {
@@ -696,7 +721,7 @@ impl FolderWin {
         }
         if self.labels.len() != self.items.len() {
             let f = fonts.get(&g.font, (g.font_size as f32 * self.sc) as i32, FW_NORMAL);
-            self.labels = self.items.iter().map(|it| text::render(stem(it), f, l.cell_w - (6.0 * self.sc) as i32, self.lines.max(1), true)).collect();
+            self.labels = self.items.iter().map(|it| text::render(store::label(&self.dir, it), f, l.cell_w - (6.0 * self.sc) as i32, self.lines.max(1), true)).collect();
         }
         if self.count.is_none() && g.show_count && !self.items.is_empty() {
             let f = fonts.get(&g.font, ((g.font_size as f32 - 1.0) * self.sc) as i32, FW_SEMIBOLD);

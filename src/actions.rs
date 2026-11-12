@@ -273,7 +273,7 @@ impl App {
         let text = match target {
             EditTarget::Title => to_w(&f.cfg.name),
             EditTarget::Item(j) => match f.items.get(j) {
-                Some(n) => stem(n).to_vec(),
+                Some(n) => store::label(&f.dir, n).to_vec(),
                 None => return,
             },
         };
@@ -320,7 +320,7 @@ impl App {
                 }
                 EditTarget::Item(j) if j < self.wins[i].items.len() => {
                     let old = self.wins[i].items[j].clone();
-                    if trim_nul(stem(&old)) != &to_w(name)[..] {
+                    if store::label(&self.wins[i].dir, &old) != &to_w(name)[..] {
                         let dir = self.wins[i].dir.clone();
                         if let Some(newname) = store::rename(&dir, &old, &to_w(name)) {
                             let f = &mut self.wins[i];

@@ -26,6 +26,8 @@ pub const WM_CROW_NEW: u32 = WM_USER + 0x43;
 pub const WM_CROW_PREFS: u32 = WM_USER + 0x45;
 /// Asks the running instance to save and quit (used by setup and uninstall).
 pub const WM_CROW_QUIT: u32 = WM_USER + 0x46;
+/// Sent by `CrowFO.exe --check-update --now`. wParam is one of the update::* states.
+pub const WM_CROW_UPDATE: u32 = WM_USER + 0x47;
 
 pub struct Fonts {
     v: Vec<(String, i32, i32, HFONT)>,
@@ -64,6 +66,11 @@ pub struct App {
     pub topmost: bool,
     pub ghost: HWND,
     pub ghost_cv: Option<Canvas>,
+    /// Where the ghost sits relative to the pointer, and how see-through it is.
+    pub ghost_off: POINT,
+    pub ghost_alpha: u8,
+    /// How the last "Check for updates" from the settings went (update::CHECKING...).
+    pub update_state: u8,
     pub drag_src: Option<(u32, usize)>,
     pub last_frame: f64,
     pub was_animating: bool,
@@ -153,6 +160,11 @@ unsafe extern "system" fn host_proc(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LR
             a.open_prefs();
             return 0;
         }
+        if m == WM_CROW_UPDATE && (w as u8) >= crate::update::LATEST && w <= crate::update::FOUND as usize {
+            a.update_state = w as u8;
+            a.pass(crate::popup::Slot::Prefs, true);
+            return 0;
+        }
         if m == WM_CROW_QUIT {
             a.save();
             PostQuitMessage(0);
@@ -199,6 +211,9 @@ impl App {
             topmost: false,
             ghost: 0,
             ghost_cv: None,
+            ghost_off: POINT { x: 0, y: 0 },
+            ghost_alpha: 255,
+            update_state: 0,
             drag_src: None,
             last_frame: 0.0,
             was_animating: false,
@@ -401,10 +416,7 @@ impl App {
                 f.scroll_target = 0.0;
                 f.place(&self.g);
                 self.render(i);
-                // keep it above other windows while it is still being moved
-                if !matches!(self.wins[i].drag, crate::folder::Drag::Move(..)) {
-                    self.sink(self.wins[i].hwnd);
-                }
+                self.sink(self.wins[i].hwnd);
             } else {
                 self.render(i);
             }

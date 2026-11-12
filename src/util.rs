@@ -367,7 +367,7 @@ pub fn mtime(path: &[u16]) -> u64 {
         ((d.mtime.hi as u64) << 32) | d.mtime.lo as u64
     }
 }
-/// Lists file names (not dirs) in `dir`.
+/// Lists the names of the files and folders in `dir`, leaving out hidden ones.
 pub fn list_files(dir: &[u16]) -> Vec<WString> {
     let mut out = Vec::new();
     unsafe {
@@ -378,8 +378,9 @@ pub fn list_files(dir: &[u16]) -> Vec<WString> {
             return out;
         }
         loop {
-            if fd.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_HIDDEN) == 0 {
-                out.push(trim_nul(&fd.cFileName).to_vec());
+            let name = trim_nul(&fd.cFileName);
+            if fd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN == 0 && name != [46u16] && name != [46u16, 46] {
+                out.push(name.to_vec());
             }
             if FindNextFileW(h, &mut fd) == 0 {
                 break;
