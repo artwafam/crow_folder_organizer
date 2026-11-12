@@ -14,6 +14,8 @@ Get `CrowFOSetup.exe` from the [latest release](../../releases/latest) and run i
 
 It installs for your user only, so no admin rights are required. It can start Crow FO with Windows and add a "Crow FO" entry to the desktop right-click menu. Uninstall it any time from Windows Settings, under Apps.
 
+If you allow it, Crow FO looks for a new version each time it starts. When there is one, a small window offers it, and one click downloads, checks and installs it. Your folders and settings stay as they are. You can turn this on or off in the installer or in Crow FO settings.
+
 Windows may show a SmartScreen warning the first time, because the installer is not signed yet. Click "More info" and then "Run anyway".
 
 Prefer no installer? Download `CrowFO-portable.exe` and run it from anywhere. To install without any window, for example from a script, run `CrowFOSetup.exe /S`.

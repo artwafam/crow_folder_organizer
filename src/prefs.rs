@@ -118,6 +118,13 @@ fn general(app: &mut App, ui: &mut Ui) {
         app.g.desktop_menu = dm;
         crate::store::set_desktop_menu(dm);
     }
+    // updates come through the installer, so a portable copy doesn't offer it
+    if crate::update::is_installed() {
+        let mut cu = crate::update::enabled();
+        if ui.toggle(1315, tr("prefs.check_updates"), &mut cu) {
+            crate::update::set_enabled(cu);
+        }
+    }
     let mut top = app.g.on_top;
     if ui.toggle(1320, tr("prefs.on_top"), &mut top) {
         app.g.on_top = top;

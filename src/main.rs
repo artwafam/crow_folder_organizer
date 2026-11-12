@@ -28,6 +28,18 @@ pub extern "system" fn entry() -> ! {
             ExitProcess(if art::export(&util::to_w(dir)) { 0 } else { 1 });
         }
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        if cl.contains("--check-update") {
+            // started by the app at launch, see update.rs. One at a time.
+            CreateMutexW(core::ptr::null(), 1, w!("Local\\CrowFOUpdate").as_ptr());
+            if GetLastError() != ERROR_ALREADY_EXISTS {
+                update::cleanup();
+                if let Some(tag) = update::check() {
+                    OleInitialize(core::ptr::null_mut());
+                    installer::offer_update(tag);
+                }
+            }
+            ExitProcess(0);
+        }
         if cl.contains("--uninstall") {
             OleInitialize(core::ptr::null_mut());
             installer::uninstall();
@@ -57,6 +69,7 @@ pub extern "system" fn entry() -> ! {
         OleInitialize(core::ptr::null_mut());
 
         let a = app::App::init();
+        update::on_start();
         if new_req != 0 {
             a.new_folder_at_cursor(new_req == 2);
         } else if want_prefs {

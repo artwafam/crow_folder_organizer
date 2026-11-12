@@ -2,7 +2,8 @@
 //! installs it for the current user only (no admin rights): the app goes to
 //! %LOCALAPPDATA%\Programs\Crow FO, a Start menu shortcut is created and it is
 //! listed in "Installed apps" so it can be removed like any other program.
-//! `CrowFO.exe --uninstall` shows the matching uninstall window.
+//! `CrowFO.exe --uninstall` shows the matching uninstall window, and the same
+//! window offers new versions found by the update check (see update.rs).
 
 use crate::app::{Fonts, WM_CROW_QUIT};
 use crate::ffi::*;
@@ -20,13 +21,20 @@ const BAR: f32 = 44.0;
 #[derive(Clone, Copy, PartialEq)]
 enum Step {
     Ask,
+    /// Downloading an update.
+    Working,
     Done,
     Failed,
 }
 
+/// Posted by the download thread when it is done, with 1 in wParam on success.
+const WM_UPDATE_DONE: u32 = 0x8000 + 1;
+
 struct Dlg {
     hwnd: HWND,
     uninstall: bool,
+    /// The tag of the new release when this window offers an update.
+    update: Option<String>,
     payload: &'static [u8],
     sc: f32,
     x: i32,
@@ -44,6 +52,7 @@ struct Dlg {
     step: Step,
     startup: bool,
     menu: bool,
+    updates: bool,
     restore: bool,
     updating: bool,
     quit: bool,
@@ -105,7 +114,8 @@ fn installed_version() -> Option<String> {
     }
 }
 
-fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
+/// `updates` is None to keep the current update check setting.
+fn install(payload: &[u8], startup: bool, menu: bool, updates: Option<bool>) -> bool {
     quit_running();
     let base = wcat(&[&env(w!("LOCALAPPDATA")), w!("\\Programs")]);
     mkdir(&base);
@@ -138,6 +148,9 @@ fn install(payload: &[u8], startup: bool, menu: bool) -> bool {
     store::reg_dword(key, w!("EstimatedSize"), (payload.len() / 1024) as u32 + 1);
     store::set_autostart_for(&exe, startup);
     store::set_desktop_menu_for(&exe, menu);
+    if let Some(on) = updates {
+        crate::update::set_enabled(on);
+    }
     true
 }
 
@@ -175,6 +188,7 @@ fn do_uninstall(restore: bool) {
     store::set_desktop_menu_for(&exe, false);
     unsafe { DeleteFileW(wz(&start_menu_link()).as_ptr()) };
     store::reg_delete_tree(UNINSTALL_KEY);
+    store::reg_delete_tree(crate::update::KEY);
     if restore {
         // every shortcut goes back to the desktop, then Crow's data is removed
         let root = store::root();
@@ -277,6 +291,17 @@ unsafe extern "system" fn dlg_proc(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRE
             frame(d, false);
             frame(d, true);
         }
+        WM_UPDATE_DONE => {
+            KillTimer(h, 2);
+            if w == 1 {
+                // the installer is running and needs this file closed
+                d.quit = true;
+            } else {
+                d.step = Step::Failed;
+                frame(d, true);
+            }
+        }
+        WM_TIMER if w == 2 => frame(d, true),
         WM_TIMER => {
             if !d.anim.step(16.0) {
                 KillTimer(h, 1);
@@ -358,8 +383,14 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
         let (tc, mc) = (th.text, th.muted);
         let title = if d.uninstall { tr("uninstall.title") } else { "Crow FO" };
         ui.text(title, tx, ty, 22.0, FW_SEMIBOLD, tc, false);
-        let mut sub = String::from(if d.uninstall { "" } else { tr("setup.subtitle") });
-        if !d.uninstall {
+        let mut sub = String::from(if d.uninstall {
+            ""
+        } else if d.update.is_some() {
+            tr("update.subtitle")
+        } else {
+            tr("setup.subtitle")
+        });
+        if !d.uninstall && d.update.is_none() {
             sub.push_str("  ·  ");
             sub.push_str(env!("CROW_VERSION"));
         }
@@ -369,10 +400,48 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
         let full = ui.w;
         let half = (full - 8.0 * sc) / 2.0;
         let x0 = ui.x;
+        if let Some(tag) = d.update.as_deref() {
+            match d.step {
+                Step::Ask => {
+                    let ver = tag.trim_start_matches('v');
+                    let text = tr("update.text").replacen("{}", ver, 1).replacen("{}", env!("CARGO_PKG_VERSION"), 1);
+                    ui.paragraph(&text, 13.0, tc);
+                    ui.y = m + ph - 58.0 * sc;
+                    if ui.button(30, tr("update.later"), None, 0, x0, half) {
+                        action = 9;
+                    }
+                    if ui.button(31, tr("update.now"), None, 1, x0 + half + 8.0 * sc, half) {
+                        action = 3;
+                    }
+                }
+                Step::Working | Step::Done => {
+                    ui.text(tr("update.downloading"), x0, ui.y, 13.0, FW_NORMAL, tc, false);
+                    let k = crate::net::PROGRESS.load(core::sync::atomic::Ordering::Relaxed) as f32 / 1000.0;
+                    let (by, bh) = (ui.y + 30.0 * sc, 6.0 * sc);
+                    if let Some(cv) = ui.cv.as_deref_mut() {
+                        cv.rrect(x0, by, full, bh, bh / 2.0, th.track, th.track, 255, 1.0);
+                        if k > 0.0 {
+                            cv.rrect(x0, by, (full * k).max(bh), bh, bh / 2.0, th.accent, th.accent, 255, 1.0);
+                        }
+                    }
+                }
+                Step::Failed => {
+                    ui.paragraph(tr("update.failed"), 13.0, th.danger);
+                    ui.y = m + ph - 58.0 * sc;
+                    if ui.button(32, tr("setup.close"), None, 0, x0, half) {
+                        action = 9;
+                    }
+                    if ui.button(33, tr("prefs.project_page"), None, 1, x0 + half + 8.0 * sc, half) {
+                        action = 4;
+                    }
+                }
+            }
+        } else {
         match (d.uninstall, d.step) {
             (false, Step::Ask) => {
                 ui.toggle(10, tr("setup.startup"), &mut d.startup);
                 ui.toggle(11, tr("setup.desktop_menu"), &mut d.menu);
+                ui.toggle(13, tr("setup.check_updates"), &mut d.updates);
                 ui.space(6.0);
                 ui.paragraph(tr("setup.where"), 12.0, mc);
                 ui.y = m + ph - 58.0 * sc;
@@ -416,6 +485,8 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
                     action = 9;
                 }
             }
+            (false, Step::Working) => {}
+        }
         }
         d.cursor = ui.cursor;
     }
@@ -439,7 +510,7 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
     }
     match action {
         1 if !d.uninstall => {
-            d.step = if install(d.payload, d.startup, d.menu) { Step::Done } else { Step::Failed };
+            d.step = if install(d.payload, d.startup, d.menu, Some(d.updates)) { Step::Done } else { Step::Failed };
             frame(d, true);
         }
         1 => {
@@ -452,12 +523,31 @@ unsafe fn frame(d: &mut Dlg, draw: bool) {
             ShellExecuteW(0, core::ptr::null(), exe.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL);
             d.quit = true;
         }
+        3 => {
+            d.step = Step::Working;
+            crate::net::PROGRESS.store(0, core::sync::atomic::Ordering::Relaxed);
+            SetTimer(d.hwnd, 2, 100, 0);
+            CreateThread(core::ptr::null(), 0, download_thread, core::ptr::null_mut(), 0, core::ptr::null_mut());
+            frame(d, true);
+        }
+        4 => {
+            let url = wz(&to_w(&crate::update::releases_page()));
+            ShellExecuteW(0, core::ptr::null(), url.as_ptr(), core::ptr::null(), core::ptr::null(), SW_SHOWNORMAL);
+            d.quit = true;
+        }
         9 => d.quit = true,
         _ => {}
     }
 }
 
-fn run(uninstall: bool, payload: &'static [u8]) {
+unsafe extern "system" fn download_thread(_: *mut core::ffi::c_void) -> u32 {
+    let d = &*DLG;
+    let ok = d.update.as_deref().is_some_and(crate::update::download_and_run);
+    PostMessageW(d.hwnd, WM_UPDATE_DONE, ok as usize, 0);
+    0
+}
+
+fn run(uninstall: bool, payload: &'static [u8], update: Option<String>) {
     unsafe {
         let inst = GetModuleHandleW(core::ptr::null());
         let wc = WNDCLASSEXW {
@@ -475,16 +565,25 @@ fn run(uninstall: bool, payload: &'static [u8]) {
             hIconSm: 0,
         };
         RegisterClassExW(&wc);
-        crate::i18n::set("auto");
+        let offer = update.is_some();
+        crate::i18n::set(&if offer { crate::update::language() } else { "auto".into() });
         let sc = GetDpiForSystem().max(96) as f32 / 96.0;
-        let (w, h) = ((440.0 * sc) as i32, (if uninstall { 330.0 } else { 360.0 } * sc) as i32);
+        let h = if uninstall { 330.0 } else if offer { 270.0 } else { 396.0 };
+        let (w, h) = ((440.0 * sc) as i32, (h * sc) as i32);
         let wa = crate::popup::work_area(crate::app::cursor());
-        let x = wa.left + (wa.right - wa.left - w) / 2;
-        let y = wa.top + (wa.bottom - wa.top - h) / 2;
+        // an update offer sits in the corner like a notification
+        let (x, y) = if offer {
+            (wa.right - w - (12.0 * sc) as i32, wa.bottom - h - (12.0 * sc) as i32)
+        } else {
+            (wa.left + (wa.right - wa.left - w) / 2, wa.top + (wa.bottom - wa.top - h) / 2)
+        };
         let updating = installed_version().is_some();
+        // the update check starts on, unless the user turned it off before
+        let updates = crate::update::choice().unwrap_or(true);
         let d = alloc::boxed::Box::leak(alloc::boxed::Box::new(Dlg {
             hwnd: 0,
             uninstall,
+            update,
             payload,
             sc,
             x,
@@ -502,6 +601,7 @@ fn run(uninstall: bool, payload: &'static [u8]) {
             step: Step::Ask,
             startup: true,
             menu: true,
+            updates,
             restore: true,
             updating,
             quit: false,
@@ -509,11 +609,17 @@ fn run(uninstall: bool, payload: &'static [u8]) {
         DLG = d;
         let m = (MARGIN * sc) as i32;
         let title = wz(&to_w(if uninstall { tr("uninstall.title") } else { "Crow FO" }));
-        d.hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_APPWINDOW, w!("CrowDialog").as_ptr(), title.as_ptr(), WS_POPUP,
+        let ex = if offer { WS_EX_TOPMOST } else { 0 };
+        d.hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_APPWINDOW | ex, w!("CrowDialog").as_ptr(), title.as_ptr(), WS_POPUP,
             x - m, y - m, w + 2 * m, h + 2 * m, 0, 0, inst, core::ptr::null());
         frame(d, true);
-        ShowWindow(d.hwnd, SW_SHOW);
-        SetForegroundWindow(d.hwnd);
+        if offer {
+            // don't take the keyboard away from whatever the user is doing
+            ShowWindow(d.hwnd, SW_SHOWNOACTIVATE);
+        } else {
+            ShowWindow(d.hwnd, SW_SHOW);
+            SetForegroundWindow(d.hwnd);
+        }
         let mut msg: MSG = core::mem::zeroed();
         while !d.quit && GetMessageW(&mut msg, 0, 0, 0) > 0 {
             TranslateMessage(&msg);
@@ -544,8 +650,8 @@ fn reg_has(path: &[u16], value: Option<&[u16]>) -> bool {
 }
 
 /// Entry point of CrowFOSetup.exe. `/S` installs without any window, for winget
-/// and scripts. An update keeps the current startup and desktop menu choices,
-/// a new install turns both on.
+/// and scripts. An update keeps the current startup, desktop menu and update
+/// check choices, a new install turns them all on.
 pub fn setup(payload: &'static [u8]) {
     let cl = unsafe { from_w(core::slice::from_raw_parts(GetCommandLineW(), crate::rt::wcslen(GetCommandLineW()).min(32768))) };
     let silent = cl.split_whitespace().skip(1).any(|a| a.eq_ignore_ascii_case("/S") || a.eq_ignore_ascii_case("--silent"));
@@ -553,17 +659,22 @@ pub fn setup(payload: &'static [u8]) {
         let fresh = installed_version().is_none();
         let startup = fresh || reg_has(store::RUN_KEY, Some(w!("Crow FO")));
         let menu = fresh || reg_has(store::DESK_KEY, None);
-        let ok = install(payload, startup, menu);
+        let ok = install(payload, startup, menu, fresh.then_some(true));
         if ok {
             let exe = wz(&wcat(&[&install_dir(), w!("\\CrowFO.exe")]));
             unsafe { ShellExecuteW(0, core::ptr::null(), exe.as_ptr(), w!("--background").as_ptr(), core::ptr::null(), SW_SHOWNORMAL) };
         }
         unsafe { ExitProcess(if ok { 0 } else { 1 }) };
     }
-    run(false, payload);
+    run(false, payload, None);
 }
 
 /// `CrowFO.exe --uninstall`, started from "Installed apps".
 pub fn uninstall() {
-    run(true, &[]);
+    run(true, &[], None);
+}
+
+/// `CrowFO.exe --check-update` found release `tag`: offer it.
+pub fn offer_update(tag: String) {
+    run(false, &[], Some(tag));
 }

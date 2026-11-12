@@ -24,6 +24,7 @@ pub mod i18n;
 pub mod image;
 pub mod input;
 pub mod installer;
+pub mod net;
 pub mod popup;
 pub mod prefs;
 pub mod raster;
@@ -35,5 +36,6 @@ pub mod svg;
 pub mod text;
 pub mod ui;
 pub mod uikit;
+pub mod update;
 
 pub use app::Fonts;

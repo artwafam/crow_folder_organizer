@@ -138,7 +138,11 @@ if (-not $p.WaitForExit(60000)) {
 # After a silent install the app starts in the background and creates its
 # first folders.
 Start-Sleep -Seconds 5
-$running = Get-Process CrowFO -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $installed }
+# The update check runs as a second, short lived CrowFO.exe. Skip it.
+$ids = Get-CimInstance Win32_Process -Filter "Name='CrowFO.exe'" |
+    Where-Object { $_.ExecutablePath -eq $installed -and $_.CommandLine -notmatch '--check-update' } |
+    ForEach-Object { $_.ProcessId }
+$running = @($ids | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
 if (-not $running) {
     Fail "Crow FO isn't running after the silent install."
 } else {

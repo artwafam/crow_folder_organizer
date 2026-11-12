@@ -394,6 +394,33 @@ extern "system" {
     pub fn LocalFree(h: isize) -> isize;
     pub fn GlobalLock(h: isize) -> *mut c_void;
     pub fn GlobalUnlock(h: isize) -> BOOL;
+    pub fn CreateThread(sa: *const c_void, stack: usize, f: unsafe extern "system" fn(*mut c_void) -> u32, arg: *mut c_void, flags: u32, id: *mut u32) -> HANDLE;
+}
+
+// HTTPS for the update check. It only runs in the short lived update process.
+#[link(name = "winhttp", kind = "raw-dylib")]
+extern "system" {
+    pub fn WinHttpOpen(agent: PCWSTR, access: u32, proxy: PCWSTR, bypass: PCWSTR, flags: u32) -> isize;
+    pub fn WinHttpSetTimeouts(h: isize, resolve: i32, connect: i32, send: i32, receive: i32) -> BOOL;
+    pub fn WinHttpConnect(h: isize, server: PCWSTR, port: u16, r: u32) -> isize;
+    pub fn WinHttpOpenRequest(h: isize, verb: PCWSTR, path: PCWSTR, ver: PCWSTR, referrer: PCWSTR, types: *const PCWSTR, flags: u32) -> isize;
+    pub fn WinHttpSendRequest(h: isize, headers: PCWSTR, len: u32, opt: *const c_void, opt_len: u32, total: u32, ctx: usize) -> BOOL;
+    pub fn WinHttpReceiveResponse(h: isize, r: *mut c_void) -> BOOL;
+    pub fn WinHttpQueryHeaders(h: isize, level: u32, name: PCWSTR, buf: *mut c_void, len: *mut u32, index: *mut u32) -> BOOL;
+    pub fn WinHttpQueryDataAvailable(h: isize, n: *mut u32) -> BOOL;
+    pub fn WinHttpReadData(h: isize, buf: *mut c_void, n: u32, read: *mut u32) -> BOOL;
+    pub fn WinHttpCloseHandle(h: isize) -> BOOL;
+}
+
+// SHA-256 to check a downloaded update against the release's checksums.
+#[link(name = "bcrypt", kind = "raw-dylib")]
+extern "system" {
+    pub fn BCryptOpenAlgorithmProvider(alg: *mut isize, id: PCWSTR, imp: PCWSTR, flags: u32) -> i32;
+    pub fn BCryptCreateHash(alg: isize, hash: *mut isize, obj: *mut u8, obj_len: u32, secret: *const u8, secret_len: u32, flags: u32) -> i32;
+    pub fn BCryptHashData(hash: isize, data: *const u8, len: u32, flags: u32) -> i32;
+    pub fn BCryptFinishHash(hash: isize, out: *mut u8, len: u32, flags: u32) -> i32;
+    pub fn BCryptDestroyHash(hash: isize) -> i32;
+    pub fn BCryptCloseAlgorithmProvider(alg: isize, flags: u32) -> i32;
 }
 
 #[link(name = "user32", kind = "raw-dylib")]
